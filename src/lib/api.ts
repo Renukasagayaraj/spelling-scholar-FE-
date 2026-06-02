@@ -1,7 +1,7 @@
 import { getAccessToken } from "@/lib/supabase";
 import { mockNextWord, mockCoaching, mockPronunciationAudio } from "@/lib/mocks";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+const BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 // When no backend URL is configured (preview/local without API server),
 // fall back to mocks so the full UI — pronunciation, coaching feedback —
 // is exercisable. Set VITE_API_BASE_URL to disable.
