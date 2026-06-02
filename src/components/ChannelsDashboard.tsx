@@ -15,7 +15,9 @@ export type ChannelSelection =
   | { kind: "customManage" }
   | { kind: "customList"; list: CustomListSummary }
   | { kind: "foreignManage" }
-  | { kind: "foreignOrigin"; origin: ForeignOriginSummary };
+  | { kind: "foreignOrigin"; origin: ForeignOriginSummary }
+  | { kind: "mockBee" }
+  | { kind: "reports" };
 
 interface ChannelsDashboardProps {
   onSelectChannel: (selection: ChannelSelection) => void;
@@ -103,7 +105,7 @@ export function ChannelsDashboard({ onSelectChannel }: ChannelsDashboardProps) {
       Icon: Trophy,
       bgClass: "bg-[hsl(var(--channel-yellow))]",
       iconColorClass: "text-warning",
-      onClick: () => {},
+      onClick: () => onSelectChannel({ kind: "mockBee" }),
     },
     {
       key: "reports",
@@ -112,7 +114,7 @@ export function ChannelsDashboard({ onSelectChannel }: ChannelsDashboardProps) {
       Icon: BarChart3,
       bgClass: "bg-[hsl(var(--channel-blue))]",
       iconColorClass: "text-info",
-      onClick: () => {},
+      onClick: () => onSelectChannel({ kind: "reports" }),
     },
   ];
 

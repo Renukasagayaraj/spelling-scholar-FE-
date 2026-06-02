@@ -320,3 +320,65 @@ export async function submitSpellingAttempt(body: CoachingRequest): Promise<Coac
     throw err;
   }
 }
+
+export interface SubscriptionStatus {
+  subscribed: boolean;
+  currentPeriodEnd?: number;
+  cancelAtPeriodEnd?: boolean;
+}
+
+export async function fetchSubscriptionStatus(): Promise<SubscriptionStatus> {
+  if (USE_MOCK_FALLBACK) {
+    const isSub = localStorage.getItem("mock_subscribed") === "true";
+    return {
+      subscribed: isSub,
+      currentPeriodEnd: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60, // 30 days from now
+      cancelAtPeriodEnd: false,
+    };
+  }
+  const res = await fetch(`${BASE_URL}/api/stripe/subscription-status`, {
+    headers: await authHeaders(),
+  });
+  if (res.status === 401) return { subscribed: false };
+  if (!res.ok) throw new Error("Failed to fetch subscription status");
+  return res.json();
+}
+
+export async function createStripeCheckoutSession(): Promise<{ url: string }> {
+  if (USE_MOCK_FALLBACK) {
+    localStorage.setItem("mock_subscribed", "true");
+    return { url: `${window.location.origin}/?payment_success=true` };
+  }
+  const res = await fetch(`${BASE_URL}/api/stripe/create-checkout-session`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(await authHeaders()),
+    },
+  });
+  if (res.status === 401) throw new UnauthorizedError();
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || "Failed to create checkout session");
+  }
+  return res.json();
+}
+
+export async function createStripePortalSession(): Promise<{ url: string }> {
+  if (USE_MOCK_FALLBACK) {
+    return { url: window.location.origin };
+  }
+  const res = await fetch(`${BASE_URL}/api/stripe/create-portal-session`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(await authHeaders()),
+    },
+  });
+  if (res.status === 401) throw new UnauthorizedError();
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || "Failed to create portal session");
+  }
+  return res.json();
+}

@@ -29,6 +29,11 @@ import { AuthMenu } from "@/components/AuthMenu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import beePng from "@/assets/bee.png";
 import * as Sentry from "@sentry/react";
+import { useAuth } from "@/hooks/use-auth";
+import { PaymentDialog } from "@/components/PaymentDialog";
+import { AuthDialog } from "@/components/AuthDialog";
+import { Trophy, BarChart3 } from "lucide-react";
+import { toast } from "sonner";
 
 function ErrorButton() {
   return (
@@ -51,8 +56,13 @@ const DEFAULT_PROFILE = {
 };
 
 export default function Index() {
-  const [theme, setTheme] = useState<ThemeKey>("default");
+  const [theme, setTheme] = useState<ThemeKey>(() => {
+    return (localStorage.getItem("spelling-coach-theme") as ThemeKey) || "default";
+  });
   const { soundEnabled, toggleSound, playCheer } = useCheer();
+  const { user, subscribed } = useAuth();
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
   const [level, setLevel] = useState(0);
   const [word, setWord] = useState<WordData | null>(null);
   const [attempt, setAttempt] = useState("");
@@ -78,7 +88,7 @@ export default function Index() {
   });
 
   // Channel / mode state. activeChannel = null means show the dashboard.
-  const [activeChannel, setActiveChannel] = useState<PracticeMode | null>(null);
+  const [activeChannel, setActiveChannel] = useState<string | null>(null);
   const [practiceMode, setPracticeMode] = useState<PracticeMode>("standard");
   const [selectedCustomList, setSelectedCustomList] = useState<CustomListSummary | null>(null);
   const [customPracticeActive, setCustomPracticeActive] = useState(false);
@@ -90,6 +100,7 @@ export default function Index() {
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme === "default" ? "" : theme);
+    localStorage.setItem("spelling-coach-theme", theme);
   }, [theme]);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -147,6 +158,18 @@ export default function Index() {
     setCustomPracticeActive(false);
     setForeignPracticeActive(false);
 
+    // Gate premium features
+    if (selection.kind !== "standard") {
+      if (!user) {
+        setAuthOpen(true);
+        return;
+      }
+      if (!subscribed) {
+        setPaymentOpen(true);
+        return;
+      }
+    }
+
     switch (selection.kind) {
       case "standard":
         setPracticeMode("standard");
@@ -174,6 +197,14 @@ export default function Index() {
         setSelectedForeignOrigin(selection.origin);
         setForeignPracticeActive(true);
         loadWord({ foreignOrigin: selection.origin.origin });
+        break;
+      case "mockBee":
+        setPracticeMode("standard");
+        setActiveChannel("mockBee");
+        break;
+      case "reports":
+        setPracticeMode("standard");
+        setActiveChannel("reports");
         break;
     }
   };
@@ -297,10 +328,12 @@ export default function Index() {
     (activeChannel === "custom" && customPracticeActive) ||
     (activeChannel === "foreignOrigin" && foreignPracticeActive);
 
-  const channelLabels: Record<PracticeMode, { label: string; Icon: typeof GraduationCap }> = {
+  const channelLabels: Record<string, { label: string; Icon: typeof GraduationCap }> = {
     standard: { label: "Standard Practice", Icon: GraduationCap },
     custom: { label: "My Word Lists", Icon: ListIcon },
     foreignOrigin: { label: "Language Origin", Icon: Globe },
+    mockBee: { label: "Mock Bee Practice", Icon: Trophy },
+    reports: { label: "Performance Reports", Icon: BarChart3 },
   };
 
   return (
@@ -355,7 +388,7 @@ export default function Index() {
               <ArrowLeft className="h-4 w-4" />
               Go Back
             </button>
-            {activeChannel && (
+            {activeChannel && channelLabels[activeChannel] && (
               <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                 {(() => {
                   const { Icon, label } = channelLabels[activeChannel];
@@ -648,6 +681,92 @@ export default function Index() {
           foreignPracticeActive={foreignPracticeActive}
         />
       </div>
+
+      {/* Mock Bee Screen */}
+      {activeChannel === "mockBee" && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm shadow-sm p-6 sm:p-8 space-y-6 text-center"
+        >
+          <div className="mx-auto w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+            <Trophy className="h-6 w-6" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-serif font-bold text-[#1e3a5f]">Mock Bee Challenge</h2>
+            <p className="text-muted-foreground text-sm max-w-md mx-auto">
+              Test your skills under realistic spelling bee conditions with a timer and off-list competition words.
+            </p>
+          </div>
+          <div className="border border-border/60 rounded-xl p-6 bg-background/50 max-w-sm mx-auto space-y-4">
+            <div className="text-left space-y-1">
+              <span className="text-xs font-semibold text-muted-foreground uppercase">Format</span>
+              <p className="text-sm font-semibold">15 Words · 30 Seconds Per Word</p>
+            </div>
+            <div className="text-left space-y-1">
+              <span className="text-xs font-semibold text-muted-foreground uppercase">Difficulty</span>
+              <p className="text-sm font-semibold">Random (based on actual Spelling Bee pools)</p>
+            </div>
+            <button
+              onClick={() => toast.success("Mock Bee session starting soon!")}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-lg py-2.5 font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm"
+            >
+              Start Simulation
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Reports Screen */}
+      {activeChannel === "reports" && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm shadow-sm p-6 sm:p-8 space-y-6"
+        >
+          <div className="flex items-center gap-3 border-b border-border/50 pb-4">
+            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+              <BarChart3 className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-serif font-bold text-[#1e3a5f]">Spelling Performance Report</h2>
+              <p className="text-xs text-muted-foreground">Historical analysis and weakness tracking</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="border border-border/60 rounded-xl p-4 bg-background/50 text-center">
+              <p className="text-xs text-muted-foreground font-medium uppercase">Overall Accuracy</p>
+              <p className="text-3xl font-bold text-[#1e3a5f] mt-1">87.5%</p>
+            </div>
+            <div className="border border-border/60 rounded-xl p-4 bg-background/50 text-center">
+              <p className="text-xs text-muted-foreground font-medium uppercase">Words Mastered</p>
+              <p className="text-3xl font-bold text-success mt-1">42</p>
+            </div>
+            <div className="border border-border/60 rounded-xl p-4 bg-background/50 text-center">
+              <p className="text-xs text-muted-foreground font-medium uppercase">Trouble Words</p>
+              <p className="text-3xl font-bold text-destructive mt-1">4</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold uppercase text-muted-foreground tracking-wider">Words to Review</h3>
+            <div className="border border-border/60 rounded-xl p-4 bg-background/30 space-y-2">
+              <div className="flex justify-between text-sm py-1 border-b border-border/30">
+                <span className="font-semibold text-destructive">conscious</span>
+                <span className="text-xs text-muted-foreground">Missed 3 times</span>
+              </div>
+              <div className="flex justify-between text-sm py-1 border-b border-border/30">
+                <span className="font-semibold text-destructive">occurrence</span>
+                <span className="text-xs text-muted-foreground">Missed 2 times</span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      <PaymentDialog open={paymentOpen} onOpenChange={setPaymentOpen} />
+      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} />
     </div>
   );
 }

@@ -1,13 +1,18 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
-import { invalidateCustomListsCache } from "@/lib/api";
+import { invalidateCustomListsCache, fetchSubscriptionStatus } from "@/lib/api";
 
 interface AuthContextValue {
   user: User | null;
   session: Session | null;
   loading: boolean;
   configured: boolean;
+  subscribed: boolean;
+  checkingSubscription: boolean;
+  currentPeriodEnd: number | null;
+  cancelAtPeriodEnd: boolean;
+  refreshSubscription: () => Promise<void>;
   signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signUpWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signInWithGoogle: () => Promise<{ error: string | null }>;
@@ -21,6 +26,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [subscribed, setSubscribed] = useState(false);
+  const [checkingSubscription, setCheckingSubscription] = useState(false);
+  const [currentPeriodEnd, setCurrentPeriodEnd] = useState<number | null>(null);
+  const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false);
+
+  const refreshSubscription = useCallback(async () => {
+    if (!user) {
+      setSubscribed(false);
+      setCurrentPeriodEnd(null);
+      setCancelAtPeriodEnd(false);
+      return;
+    }
+    setCheckingSubscription(true);
+    try {
+      const res = await fetchSubscriptionStatus();
+      setSubscribed(res.subscribed);
+      setCurrentPeriodEnd(res.currentPeriodEnd ?? null);
+      setCancelAtPeriodEnd(!!res.cancelAtPeriodEnd);
+    } catch (err) {
+      console.error("Failed to check subscription status:", err);
+      setSubscribed(false);
+      setCurrentPeriodEnd(null);
+      setCancelAtPeriodEnd(false);
+    } finally {
+      setCheckingSubscription(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      refreshSubscription();
+    } else {
+      setSubscribed(false);
+      setCurrentPeriodEnd(null);
+      setCancelAtPeriodEnd(false);
+    }
+  }, [user, refreshSubscription]);
 
   useEffect(() => {
     if (!supabaseConfigured) {
@@ -47,6 +89,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     loading,
     configured: supabaseConfigured,
+    subscribed,
+    checkingSubscription,
+    currentPeriodEnd,
+    cancelAtPeriodEnd,
+    refreshSubscription,
     signInWithPassword: async (email, password) => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       return { error: error?.message ?? null };
