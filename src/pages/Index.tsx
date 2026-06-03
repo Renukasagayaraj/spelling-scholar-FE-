@@ -35,19 +35,6 @@ import { AuthDialog } from "@/components/AuthDialog";
 import { Trophy, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 
-function ErrorButton() {
-  return (
-    <button
-      onClick={() => {
-        throw new Error("This is your first error!");
-      }}
-      className="px-3 py-1.5 text-xs font-semibold text-white bg-destructive hover:bg-destructive/90 rounded-lg transition-all shadow-sm active:scale-95 duration-100"
-    >
-      Break the world
-    </button>
-  );
-}
-
 const DEFAULT_PROFILE = {
   childId: "c1",
   age: 10,
@@ -352,7 +339,6 @@ export default function Index() {
             </span>
           </button>
           <div className="flex items-center gap-1">
-            <ErrorButton />
             <AuthMenu />
             <Tooltip>
               <TooltipTrigger asChild>
