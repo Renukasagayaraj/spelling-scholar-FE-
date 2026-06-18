@@ -47,7 +47,15 @@ export default function Index() {
     return (localStorage.getItem("spelling-coach-theme") as ThemeKey) || "default";
   });
   const { soundEnabled, toggleSound, playCheer } = useCheer();
-  const { user, subscribed } = useAuth();
+  const { user, dbUser, subscribed } = useAuth();
+  const activeProfile = dbUser
+    ? {
+        childId: dbUser.child_id || "c1",
+        age: dbUser.age || 10,
+        grade: dbUser.grade || "5",
+        spellingLevel: dbUser.spelling_level || "competition",
+      }
+    : DEFAULT_PROFILE;
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [level, setLevel] = useState(0);
@@ -89,6 +97,15 @@ export default function Index() {
     document.documentElement.setAttribute("data-theme", theme === "default" ? "" : theme);
     localStorage.setItem("spelling-coach-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (dbUser && dbUser.spelling_level) {
+      let mappedLvl = 1;
+      if (dbUser.spelling_level === "intermediate") mappedLvl = 2;
+      else if (dbUser.spelling_level === "advanced" || dbUser.spelling_level === "competition") mappedLvl = 3;
+      setLevel(mappedLvl);
+    }
+  }, [dbUser]);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -230,7 +247,7 @@ export default function Index() {
       const res = await submitSpellingAttempt({
         targetWord: word.word,
         childAttempt: attempt.trim().toLowerCase(),
-        childProfile: DEFAULT_PROFILE,
+        childProfile: activeProfile,
         supportsUsed: { ...supportsViewed.current },
         sessionContext: session,
       });

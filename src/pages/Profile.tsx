@@ -24,14 +24,21 @@ import { ThemePicker, type ThemeKey } from "@/components/ThemePicker";
 export default function Profile() {
     const {
         user,
+        dbUser,
         loading,
         subscribed,
         currentPeriodEnd,
         cancelAtPeriodEnd,
         refreshSubscription,
+        updateProfile,
         signOut,
     } = useAuth();
     const [busy, setBusy] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [childId, setChildId] = useState("");
+    const [age, setAge] = useState("");
+    const [grade, setGrade] = useState("");
+    const [spellingLevel, setSpellingLevel] = useState("");
     const [stripeAction, setStripeAction] = useState<"billing" | "checkout" | null>(null);
     const navigate = useNavigate();
 
@@ -51,6 +58,32 @@ export default function Profile() {
             refreshSubscription().catch(console.error);
         }
     }, [user, loading, refreshSubscription]);
+
+    useEffect(() => {
+        if (dbUser) {
+            setChildId(dbUser.child_id || "");
+            setAge(dbUser.age !== null && dbUser.age !== undefined ? String(dbUser.age) : "");
+            setGrade(dbUser.grade || "");
+            setSpellingLevel(dbUser.spelling_level || "");
+        }
+    }, [dbUser]);
+
+    const handleSaveProfile = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSaving(true);
+        const { error } = await updateProfile({
+            child_id: childId,
+            age: age ? parseInt(age, 10) : undefined,
+            grade: grade || undefined,
+            spelling_level: spellingLevel || undefined,
+        });
+        setSaving(false);
+        if (error) {
+            toast.error(error);
+        } else {
+            toast.success("Child profile details saved successfully!");
+        }
+    };
 
     const handleManageBilling = async () => {
         setBusy(true);
@@ -225,9 +258,110 @@ export default function Profile() {
 
                         {/* Right side: Subscription Management */}
                         <div className="md:col-span-2 space-y-6">
+                            {/* Child Profile Details Card */}
+                            <div className="bg-card border border-border/60 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+                                <div className="border-b border-border/50 pb-4">
+                                    <h2 className="text-xl font-serif font-bold text-[#1e3a5f]">
+                                        Child Profile Details
+                                    </h2>
+                                    <p className="text-muted-foreground text-xs">
+                                        Configure the spelling practice preferences for your child.
+                                    </p>
+                                </div>
+
+                                <form onSubmit={handleSaveProfile} className="space-y-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
+                                                Child Name / ID
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={childId}
+                                                onChange={(e) => setChildId(e.target.value)}
+                                                placeholder="e.g. Alex"
+                                                className="w-full bg-background border border-border px-3 py-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
+                                                Age
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={age}
+                                                onChange={(e) => setAge(e.target.value)}
+                                                placeholder="e.g. 10"
+                                                min="3"
+                                                max="18"
+                                                className="w-full bg-background border border-border px-3 py-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
+                                                Grade
+                                            </label>
+                                            <select
+                                                value={grade}
+                                                onChange={(e) => setGrade(e.target.value)}
+                                                className="w-full bg-background border border-border px-3 py-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                            >
+                                                <option value="">Select Grade</option>
+                                                <option value="1">Grade 1</option>
+                                                <option value="2">Grade 2</option>
+                                                <option value="3">Grade 3</option>
+                                                <option value="4">Grade 4</option>
+                                                <option value="5">Grade 5</option>
+                                                <option value="6">Grade 6</option>
+                                                <option value="7">Grade 7</option>
+                                                <option value="8">Grade 8</option>
+                                                <option value="highschool">High School</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
+                                                Spelling Level
+                                            </label>
+                                            <select
+                                                value={spellingLevel}
+                                                onChange={(e) => setSpellingLevel(e.target.value)}
+                                                className="w-full bg-background border border-border px-3 py-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                            >
+                                                <option value="">Select Level</option>
+                                                <option value="beginner">Beginner</option>
+                                                <option value="intermediate">Intermediate</option>
+                                                <option value="advanced">Advanced</option>
+                                                <option value="competition">Competition</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        disabled={saving}
+                                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl py-2.5 font-bold text-sm bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-all shadow-md active:scale-[0.99]"
+                                    >
+                                        {saving ? (
+                                            <>
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                Saving details...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Check className="h-4 w-4" />
+                                                Save Profile
+                                            </>
+                                        )}
+                                    </button>
+                                </form>
+                            </div>
+
                             {subscribed ? (
                                 /* Subscribed Premium Panel */
-                                <div className="bg-card border border-amber-500/20 bg-gradient-to-b from-amber-500/[0.02] to-transparent rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+                                <div className="bg-card border border-amber-500/20 bg-gradient-to-b from-amber-500/[0.02] to-transparent rounded-2xl p-6 sm:p-8 shadow-sm space-y-6 text-left">
                                     <div className="flex items-start justify-between gap-4 border-b border-border/50 pb-5">
                                         <div className="space-y-1.5">
                                             <h2 className="text-xl font-serif font-bold text-amber-950 dark:text-amber-300 flex items-center gap-2">

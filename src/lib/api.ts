@@ -382,3 +382,69 @@ export async function createStripePortalSession(): Promise<{ url: string }> {
   }
   return res.json();
 }
+
+export interface DbUser {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  child_id: string | null;
+  age: number | null;
+  grade: string | null;
+  spelling_level: string | null;
+  theme_preference: string;
+  audio_enabled: boolean;
+}
+
+export interface UserProfileUpdate {
+  full_name?: string;
+  child_id?: string;
+  age?: number;
+  grade?: string;
+  spelling_level?: string;
+  theme_preference?: string;
+  audio_enabled?: boolean;
+}
+
+export async function fetchCurrentUserProfile(): Promise<{ user: DbUser }> {
+  if (USE_MOCK_FALLBACK) {
+    return {
+      user: {
+        id: "mock-id",
+        email: "mock@example.com",
+        full_name: "Mock User",
+        child_id: "c1",
+        age: 10,
+        grade: "5",
+        spelling_level: "competition",
+        theme_preference: "default",
+        audio_enabled: true,
+      }
+    };
+  }
+  const res = await fetch(`${BASE_URL}/api/auth/me`, {
+    headers: await authHeaders(),
+  });
+  if (res.status === 401) throw new UnauthorizedError();
+  if (!res.ok) throw new Error("Failed to fetch user profile");
+  return res.json();
+}
+
+export async function updateUserProfile(payload: UserProfileUpdate): Promise<{ user: DbUser }> {
+  if (USE_MOCK_FALLBACK) {
+    return { user: { id: "mock-id", email: "mock@example.com", ...payload } as DbUser };
+  }
+  const res = await fetch(`${BASE_URL}/api/auth/profile`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(await authHeaders()),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (res.status === 401) throw new UnauthorizedError();
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || "Failed to update user profile");
+  }
+  return res.json();
+}

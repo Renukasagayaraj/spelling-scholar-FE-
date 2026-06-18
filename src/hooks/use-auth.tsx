@@ -1,10 +1,18 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
-import { invalidateCustomListsCache, fetchSubscriptionStatus } from "@/lib/api";
+import {
+  invalidateCustomListsCache,
+  fetchSubscriptionStatus,
+  fetchCurrentUserProfile,
+  updateUserProfile,
+  type DbUser,
+  type UserProfileUpdate,
+} from "@/lib/api";
 
 interface AuthContextValue {
   user: User | null;
+  dbUser: DbUser | null;
   session: Session | null;
   loading: boolean;
   configured: boolean;
@@ -13,6 +21,8 @@ interface AuthContextValue {
   currentPeriodEnd: number | null;
   cancelAtPeriodEnd: boolean;
   refreshSubscription: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  updateProfile: (profileUpdate: UserProfileUpdate) => Promise<{ error: string | null }>;
   signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signUpWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signInWithGoogle: () => Promise<{ error: string | null }>;
@@ -25,11 +35,37 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [dbUser, setDbUser] = useState<DbUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [subscribed, setSubscribed] = useState(false);
   const [checkingSubscription, setCheckingSubscription] = useState(false);
   const [currentPeriodEnd, setCurrentPeriodEnd] = useState<number | null>(null);
   const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false);
+
+  const refreshProfile = useCallback(async () => {
+    if (!user) {
+      setDbUser(null);
+      return;
+    }
+    try {
+      const { user: profile } = await fetchCurrentUserProfile();
+      setDbUser(profile);
+    } catch (err) {
+      console.error("Failed to fetch user profile:", err);
+    }
+  }, [user]);
+
+  const updateProfile = useCallback(async (profileUpdate: UserProfileUpdate) => {
+    if (!user) return { error: "No user logged in." };
+    try {
+      const { user: updated } = await updateUserProfile(profileUpdate);
+      setDbUser(updated);
+      return { error: null };
+    } catch (err: any) {
+      console.error("Failed to update user profile:", err);
+      return { error: err.message || "Failed to update profile." };
+    }
+  }, [user]);
 
   const refreshSubscription = useCallback(async () => {
     if (!user) {
@@ -57,12 +93,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (user) {
       refreshSubscription();
+      refreshProfile();
     } else {
       setSubscribed(false);
       setCurrentPeriodEnd(null);
       setCancelAtPeriodEnd(false);
+      setDbUser(null);
     }
-  }, [user, refreshSubscription]);
+  }, [user, refreshSubscription, refreshProfile]);
 
   useEffect(() => {
     if (!supabaseConfigured) {
@@ -86,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value: AuthContextValue = {
     user,
+    dbUser,
     session,
     loading,
     configured: supabaseConfigured,
@@ -94,6 +133,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     currentPeriodEnd,
     cancelAtPeriodEnd,
     refreshSubscription,
+    refreshProfile,
+    updateProfile,
     signInWithPassword: async (email, password) => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       return { error: error?.message ?? null };
