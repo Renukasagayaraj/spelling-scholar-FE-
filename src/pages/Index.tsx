@@ -7,7 +7,6 @@ import { LevelSelector } from "@/components/LevelSelector";
 import { SupportCard } from "@/components/SupportCard";
 import { CoachingResult } from "@/components/CoachingResult";
 import { DebugPanel } from "@/components/DebugPanel";
-import { ThemePicker, type ThemeKey } from "@/components/ThemePicker";
 import { type PracticeMode } from "@/components/PracticeModeSwitch";
 import { CustomListPanel } from "@/components/CustomListPanel";
 import { ForeignOriginPanel } from "@/components/ForeignOriginPanel";
@@ -34,6 +33,7 @@ import { PaymentDialog } from "@/components/PaymentDialog";
 import { AuthDialog } from "@/components/AuthDialog";
 import { Trophy, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
+import { Header } from "@/components/Header";
 
 const DEFAULT_PROFILE = {
   childId: "c1",
@@ -43,18 +43,15 @@ const DEFAULT_PROFILE = {
 };
 
 export default function Index() {
-  const [theme, setTheme] = useState<ThemeKey>(() => {
-    return (localStorage.getItem("spelling-coach-theme") as ThemeKey) || "default";
-  });
-  const { soundEnabled, toggleSound, playCheer } = useCheer();
+  const { playCheer } = useCheer();
   const { user, dbUser, subscribed } = useAuth();
   const activeProfile = dbUser
     ? {
-        childId: dbUser.child_id || "c1",
-        age: dbUser.age || 10,
-        grade: dbUser.grade || "5",
-        spellingLevel: dbUser.spelling_level || "competition",
-      }
+      childId: dbUser.child_id || "c1",
+      age: dbUser.age || 10,
+      grade: dbUser.grade || "5",
+      spellingLevel: dbUser.spelling_level || "competition",
+    }
     : DEFAULT_PROFILE;
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
@@ -93,10 +90,6 @@ export default function Index() {
   const [selectedForeignOriginDetails, setSelectedForeignOriginDetails] = useState<ForeignOriginDetail | null>(null);
   const [foreignPracticeActive, setForeignPracticeActive] = useState(false);
 
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme === "default" ? "" : theme);
-    localStorage.setItem("spelling-coach-theme", theme);
-  }, [theme]);
 
   useEffect(() => {
     if (dbUser && dbUser.spelling_level) {
@@ -342,37 +335,7 @@ export default function Index() {
 
   return (
     <div className="min-h-screen">
-      {/* Top app bar — webapp style */}
-      <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-transparent backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-8">
-          <button
-            onClick={handleBackToDashboard}
-            className="flex items-center gap-2 rounded-lg px-1.5 py-1 -ml-1.5 hover:bg-primary/10 transition-colors"
-            title="Home"
-          >
-            <img src={beePng} alt="Spelling bee mascot" className="h-14 w-auto mt-1" />
-            <span className="text-lg font-display tracking-tight text-[#1e3a5f] font-serif font-semibold">
-              AI Spelling Coach
-            </span>
-          </button>
-          <div className="flex items-center gap-1">
-            <AuthMenu />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={toggleSound}
-                  className="p-2 rounded-lg bg-muted text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                  aria-label="Sound"
-                >
-                  {soundEnabled ? <Volume1 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Sound</TooltipContent>
-            </Tooltip>
-            <ThemePicker current={theme} onChange={setTheme} />
-          </div>
-        </div>
-      </header>
+      <Header onBackToDashboard={handleBackToDashboard} />
 
       <div className={cn(
         "mx-auto px-4 sm:px-8 py-6 sm:py-10",

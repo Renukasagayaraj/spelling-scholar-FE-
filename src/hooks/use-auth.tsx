@@ -9,6 +9,7 @@ import {
   type DbUser,
   type UserProfileUpdate,
 } from "@/lib/api";
+type ThemeKey = "default" | "warm" | "bright" | "nature" | "space" | "candy" | "bee";
 
 interface AuthContextValue {
   user: User | null;
@@ -20,6 +21,10 @@ interface AuthContextValue {
   checkingSubscription: boolean;
   currentPeriodEnd: number | null;
   cancelAtPeriodEnd: boolean;
+  theme: ThemeKey;
+  soundEnabled: boolean;
+  setTheme: (theme: ThemeKey) => Promise<void>;
+  toggleSound: () => Promise<void>;
   refreshSubscription: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfile: (profileUpdate: UserProfileUpdate) => Promise<{ error: string | null }>;
@@ -41,6 +46,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [checkingSubscription, setCheckingSubscription] = useState(false);
   const [currentPeriodEnd, setCurrentPeriodEnd] = useState<number | null>(null);
   const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false);
+  // Initialize theme from localStorage
+  const [theme, setThemeState] = useState<ThemeKey>(() => {
+    try {
+      return (localStorage.getItem("spelling-coach-theme") as ThemeKey) || "default";
+    } catch {
+      return "default";
+    }
+  });
+
+  // Initialize sound from localStorage
+  const [soundEnabled, setSoundEnabledState] = useState<boolean>(() => {
+    try {
+      const v = localStorage.getItem("spelling-coach-sound-enabled");
+      return v === null ? true : v === "true";
+    } catch {
+      return true;
+    }
+  });
+
+  // Apply theme class to HTML element
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme === "default" ? "" : theme);
+    try {
+      localStorage.setItem("spelling-coach-theme", theme);
+    } catch { }
+  }, [theme]);
+
+  // Sync sound to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem("spelling-coach-sound-enabled", String(soundEnabled));
+    } catch { }
+  }, [soundEnabled]);
 
   const refreshProfile = useCallback(async () => {
     if (!user) {
@@ -50,6 +88,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { user: profile } = await fetchCurrentUserProfile();
       setDbUser(profile);
+
+      // ADD THIS: Load preferences from database if they exist
+      if (profile.theme_preference) {
+        setThemeState(profile.theme_preference as ThemeKey);
+      }
+      if (profile.audio_enabled !== undefined) {
+        setSoundEnabledState(profile.audio_enabled);
+      }
     } catch (err) {
       console.error("Failed to fetch user profile:", err);
     }
@@ -60,12 +106,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { user: updated } = await updateUserProfile(profileUpdate);
       setDbUser(updated);
+
+      // ADD THIS: Sync local state with database updates
+      if (updated.theme_preference) {
+        setThemeState(updated.theme_preference as ThemeKey);
+      }
+      if (updated.audio_enabled !== undefined) {
+        setSoundEnabledState(updated.audio_enabled);
+      }
+
       return { error: null };
     } catch (err: any) {
       console.error("Failed to update user profile:", err);
       return { error: err.message || "Failed to update profile." };
     }
   }, [user]);
+
+  const setTheme = useCallback(async (newTheme: ThemeKey) => {
+    setThemeState(newTheme);
+    if (user) {
+      await updateProfile({ theme_preference: newTheme });
+    }
+  }, [user, updateProfile]);
+
+  const toggleSound = useCallback(async () => {
+    const nextSoundState = !soundEnabled;
+    setSoundEnabledState(nextSoundState);
+    if (user) {
+      await updateProfile({ audio_enabled: nextSoundState });
+    }
+  }, [user, soundEnabled, updateProfile]);
 
   const refreshSubscription = useCallback(async () => {
     if (!user) {
@@ -132,6 +202,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkingSubscription,
     currentPeriodEnd,
     cancelAtPeriodEnd,
+    theme,
+    soundEnabled,
+    setTheme,
+    toggleSound,
     refreshSubscription,
     refreshProfile,
     updateProfile,
