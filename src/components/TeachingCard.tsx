@@ -49,12 +49,12 @@ interface ConceptTeachingData {
   morphologyFocus: string;
   originLabels: string[];
   morphologyLabels: string[];
+  relatedForms?: string[];
 }
 
 function hasContent(data: ConceptTeachingData): boolean {
   return !!(
-    data.summary || data.meaningFocus || data.originFocus || data.morphologyFocus ||
-    data.originLabels?.length || data.morphologyLabels?.length
+    data.summary || data.originLabels?.length || data.morphologyLabels?.length
   );
 }
 
@@ -65,9 +65,6 @@ export function ConceptTeachingContent({ data }: { data: ConceptTeachingData }) 
   return (
     <>
       {data.summary && <p>{data.summary}</p>}
-      {data.meaningFocus && <p className="text-xs"><span className="font-semibold text-primary">Meaning:</span> {data.meaningFocus}</p>}
-      {data.originFocus && <p className="text-xs"><span className="font-semibold text-primary">Origin:</span> {data.originFocus}</p>}
-      {data.morphologyFocus && <p className="text-xs"><span className="font-semibold text-primary">Morphology:</span> {data.morphologyFocus}</p>}
       <LabelChips labels={data.originLabels} variant="accent" title="Origin" />
       <LabelChips labels={data.morphologyLabels} variant="warm" title="Morphology" />
     </>

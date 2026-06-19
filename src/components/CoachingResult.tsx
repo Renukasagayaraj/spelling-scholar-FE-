@@ -6,8 +6,9 @@ import {
 import type { CoachingResponse } from "@/lib/api";
 import { WordBreakdownChips } from "./WordBreakdownChips";
 import { LabelChips } from "./LabelChips";
+import { MatchedPatternChips } from "./MatchedPatternChips";
 import { ConfidenceBar } from "./ConfidenceBar";
-import { TeachingCard, FormTeachingContent, ConceptTeachingContent } from "./TeachingCard";
+import { TeachingCard, ConceptTeachingContent } from "./TeachingCard";
 import { BooleanStatusRow } from "./BooleanStatusRow";
 import { cn } from "@/lib/utils";
 
@@ -66,6 +67,11 @@ export function CoachingResult({ result, level }: CoachingResultProps) {
       {wordBreakdown?.displayChunks?.length > 0 && (
         <Section icon={Puzzle} title="Word Breakdown">
           <WordBreakdownChips chunks={wordBreakdown.displayChunks} reason={wordBreakdown.chunkReason} />
+          {isLevel1 && wordBreakdown.matchedPatterns?.length > 0 && (
+            <div className="mt-3">
+              <MatchedPatternChips patterns={wordBreakdown.matchedPatterns} title="Matched Patterns" />
+            </div>
+          )}
         </Section>
       )}
 
@@ -100,7 +106,34 @@ export function CoachingResult({ result, level }: CoachingResultProps) {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <TeachingCard title="Form Teaching" icon={<Shapes className="h-4 w-4 text-primary" />}>
-              <FormTeachingContent data={wordTeaching.formTeaching} />
+              {(() => {
+                const matched = wordBreakdown?.matchedPatterns ?? [];
+                const conceptPatterns = conceptLabels?.patternLabels ?? [];
+                const sayAloud = coachingText?.sayAloudTip;
+                const relatedForms = wordTeaching?.conceptTeaching?.relatedForms ?? [];
+                if (matched.length === 0 && conceptPatterns.length === 0 && !sayAloud && relatedForms.length === 0) {
+                  return <p className="text-muted-foreground italic text-xs">No matched patterns for this word.</p>;
+                }
+                return (
+                  <div className="space-y-2.5">
+                    {matched.length > 0 && (
+                      <MatchedPatternChips patterns={matched} title="Patterns" />
+                    )}
+                    {conceptPatterns.length > 0 && (
+                      <LabelChips labels={conceptPatterns} variant="default" title="Concept Labels" />
+                    )}
+                    {relatedForms.length > 0 && (
+                      <LabelChips labels={relatedForms} variant="accent" title="Related Forms" />
+                    )}
+                    {sayAloud && (
+                      <div>
+                        <p className="text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">Say Aloud Tip</p>
+                        <p>{sayAloud}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </TeachingCard>
             <TeachingCard title="Concept Teaching" icon={<BookText className="h-4 w-4 text-primary" />}>
               <ConceptTeachingContent data={wordTeaching.conceptTeaching} />
@@ -113,7 +146,7 @@ export function CoachingResult({ result, level }: CoachingResultProps) {
       {/* Teaching Decision - hidden for cleaner UX */}
 
       {/* Explanation */}
-      {!isLevel1 && (
+      {!isLevel1 && !isCorrect && coachingText.fullExplanation && (
         <Section icon={BookOpen} title="Explanation">
           <p>{coachingText.fullExplanation}</p>
         </Section>
@@ -127,7 +160,8 @@ export function CoachingResult({ result, level }: CoachingResultProps) {
       )}
 
       {/* Say It Aloud */}
-      {coachingText.sayAloudTip && (
+      {/* Say It Aloud (L1 only — for L2/L3 this is shown inside Form Teaching) */}
+      {isLevel1 && coachingText.sayAloudTip && (
         <Section icon={Volume2} title="Say It Aloud">
           <p>{coachingText.sayAloudTip}</p>
         </Section>

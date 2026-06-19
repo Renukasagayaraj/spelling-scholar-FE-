@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LogIn, LogOut, User as UserIcon, Loader2, Sparkles, ChevronDown } from "lucide-react";
+import { LogIn, LogOut, User as UserIcon, Loader2, ChevronDown, Sparkles } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { AuthDialog } from "@/components/AuthDialog";
 import { useNavigate } from "react-router-dom";
@@ -18,7 +18,7 @@ export function AuthMenu() {
   if (user) {
     const label = user.email ?? user.user_metadata?.name ?? "Signed in";
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         <button
           onClick={() => navigate("/profile")}
           className="hidden sm:inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 px-3 py-1.5 rounded-full border border-border/40 transition-all shadow-sm active:scale-95 shrink-0"
@@ -63,7 +63,7 @@ export function AuthMenu() {
     <>
       <button
         onClick={() => setOpenAuth(true)}
-        className="font-medium px-3 py-1.5 rounded-lg text-[#1e3a5f] hover:text-primary transition-colors text-base"
+        className="font-medium px-3 py-1.5 rounded-lg text-foreground hover:text-primary transition-colors text-base"
         title="Sign in"
       >
         Sign in

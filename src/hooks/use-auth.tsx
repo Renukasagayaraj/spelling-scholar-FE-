@@ -1,19 +1,10 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
-import {
-  invalidateCustomListsCache,
-  fetchSubscriptionStatus,
-  fetchCurrentUserProfile,
-  updateUserProfile,
-  type DbUser,
-  type UserProfileUpdate,
-} from "@/lib/api";
-type ThemeKey = "default" | "warm" | "bright" | "nature" | "space" | "candy" | "bee";
+import { invalidateCustomListsCache, fetchSubscriptionStatus } from "@/lib/api";
 
 interface AuthContextValue {
   user: User | null;
-  dbUser: DbUser | null;
   session: Session | null;
   loading: boolean;
   configured: boolean;
@@ -21,13 +12,7 @@ interface AuthContextValue {
   checkingSubscription: boolean;
   currentPeriodEnd: number | null;
   cancelAtPeriodEnd: boolean;
-  theme: ThemeKey;
-  soundEnabled: boolean;
-  setTheme: (theme: ThemeKey) => Promise<void>;
-  toggleSound: () => Promise<void>;
   refreshSubscription: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
-  updateProfile: (profileUpdate: UserProfileUpdate) => Promise<{ error: string | null }>;
   signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signUpWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signInWithGoogle: () => Promise<{ error: string | null }>;
@@ -40,102 +25,11 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [dbUser, setDbUser] = useState<DbUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [subscribed, setSubscribed] = useState(false);
   const [checkingSubscription, setCheckingSubscription] = useState(false);
   const [currentPeriodEnd, setCurrentPeriodEnd] = useState<number | null>(null);
   const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false);
-  // Initialize theme from localStorage
-  const [theme, setThemeState] = useState<ThemeKey>(() => {
-    try {
-      return (localStorage.getItem("spelling-coach-theme") as ThemeKey) || "default";
-    } catch {
-      return "default";
-    }
-  });
-
-  // Initialize sound from localStorage
-  const [soundEnabled, setSoundEnabledState] = useState<boolean>(() => {
-    try {
-      const v = localStorage.getItem("spelling-coach-sound-enabled");
-      return v === null ? true : v === "true";
-    } catch {
-      return true;
-    }
-  });
-
-  // Apply theme class to HTML element
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme === "default" ? "" : theme);
-    try {
-      localStorage.setItem("spelling-coach-theme", theme);
-    } catch { }
-  }, [theme]);
-
-  // Sync sound to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem("spelling-coach-sound-enabled", String(soundEnabled));
-    } catch { }
-  }, [soundEnabled]);
-
-  const refreshProfile = useCallback(async () => {
-    if (!user) {
-      setDbUser(null);
-      return;
-    }
-    try {
-      const { user: profile } = await fetchCurrentUserProfile();
-      setDbUser(profile);
-
-      // ADD THIS: Load preferences from database if they exist
-      if (profile.theme_preference) {
-        setThemeState(profile.theme_preference as ThemeKey);
-      }
-      if (profile.audio_enabled !== undefined) {
-        setSoundEnabledState(profile.audio_enabled);
-      }
-    } catch (err) {
-      console.error("Failed to fetch user profile:", err);
-    }
-  }, [user]);
-
-  const updateProfile = useCallback(async (profileUpdate: UserProfileUpdate) => {
-    if (!user) return { error: "No user logged in." };
-    try {
-      const { user: updated } = await updateUserProfile(profileUpdate);
-      setDbUser(updated);
-
-      // ADD THIS: Sync local state with database updates
-      if (updated.theme_preference) {
-        setThemeState(updated.theme_preference as ThemeKey);
-      }
-      if (updated.audio_enabled !== undefined) {
-        setSoundEnabledState(updated.audio_enabled);
-      }
-
-      return { error: null };
-    } catch (err: any) {
-      console.error("Failed to update user profile:", err);
-      return { error: err.message || "Failed to update profile." };
-    }
-  }, [user]);
-
-  const setTheme = useCallback(async (newTheme: ThemeKey) => {
-    setThemeState(newTheme);
-    if (user) {
-      await updateProfile({ theme_preference: newTheme });
-    }
-  }, [user, updateProfile]);
-
-  const toggleSound = useCallback(async () => {
-    const nextSoundState = !soundEnabled;
-    setSoundEnabledState(nextSoundState);
-    if (user) {
-      await updateProfile({ audio_enabled: nextSoundState });
-    }
-  }, [user, soundEnabled, updateProfile]);
 
   const refreshSubscription = useCallback(async () => {
     if (!user) {
@@ -163,38 +57,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (user) {
       refreshSubscription();
-      refreshProfile();
     } else {
       setSubscribed(false);
       setCurrentPeriodEnd(null);
       setCancelAtPeriodEnd(false);
-      setDbUser(null);
     }
-  }, [user, refreshSubscription, refreshProfile]);
+  }, [user, refreshSubscription]);
 
   useEffect(() => {
     if (!supabaseConfigured) {
       setLoading(false);
       return;
     }
+
+    // Strip OAuth tokens from the URL hash so they aren't visible/shareable.
+    // Supabase's detectSessionInUrl parses them, but we clean the address bar.
+    const scrubAuthHash = () => {
+      if (typeof window === "undefined") return;
+      const hash = window.location.hash;
+      if (hash && /[#&](access_token|refresh_token|provider_token|error_description)=/.test(hash)) {
+        const cleanUrl = window.location.pathname + window.location.search;
+        window.history.replaceState(null, "", cleanUrl);
+      }
+    };
+
     // 1. Set up listener FIRST
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
       invalidateCustomListsCache();
       setSession(newSession);
       setUser(newSession?.user ?? null);
+      scrubAuthHash();
     });
     // 2. Then fetch existing session
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setUser(data.session?.user ?? null);
       setLoading(false);
+      scrubAuthHash();
     });
     return () => sub.subscription.unsubscribe();
   }, []);
 
   const value: AuthContextValue = {
     user,
-    dbUser,
     session,
     loading,
     configured: supabaseConfigured,
@@ -202,18 +107,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkingSubscription,
     currentPeriodEnd,
     cancelAtPeriodEnd,
-    theme,
-    soundEnabled,
-    setTheme,
-    toggleSound,
     refreshSubscription,
-    refreshProfile,
-    updateProfile,
     signInWithPassword: async (email, password) => {
+      if (!supabaseConfigured) return { error: "Auth is not configured. Please contact support." };
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       return { error: error?.message ?? null };
     },
     signUpWithPassword: async (email, password) => {
+      if (!supabaseConfigured) return { error: "Auth is not configured. Please contact support." };
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -222,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: error?.message ?? null };
     },
     signInWithGoogle: async () => {
+      if (!supabaseConfigured) return { error: "Auth is not configured. Please contact support." };
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: window.location.origin },
@@ -229,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: error?.message ?? null };
     },
     signInWithFacebook: async () => {
+      if (!supabaseConfigured) return { error: "Auth is not configured. Please contact support." };
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "facebook",
         options: { redirectTo: window.location.origin },
@@ -236,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: error?.message ?? null };
     },
     signOut: async () => {
+      if (!supabaseConfigured) return;
       await supabase.auth.signOut();
     },
   };

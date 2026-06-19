@@ -1,9 +1,9 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, MessageSquareQuote, Globe } from "lucide-react";
+import { BookOpen, MessageSquareQuote, Globe, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SupportCardProps {
-  type: "definition" | "example" | "origin";
+  type: "definition" | "example" | "origin" | "partOfSpeech";
   content: string;
   isOpen: boolean;
   onToggle: () => void;
@@ -13,6 +13,7 @@ const config = {
   definition: { icon: BookOpen, label: "Definition", color: "bg-chip text-chip-foreground" },
   example: { icon: MessageSquareQuote, label: "Example Sentence", color: "bg-chip-warm text-chip-warm-foreground" },
   origin: { icon: Globe, label: "Origin", color: "bg-chip-accent text-chip-accent-foreground" },
+  partOfSpeech: { icon: Tag, label: "Part of Speech", color: "bg-chip text-chip-foreground" },
 };
 
 export function SupportCard({ type, content, isOpen, onToggle }: SupportCardProps) {

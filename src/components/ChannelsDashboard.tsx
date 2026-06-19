@@ -15,9 +15,7 @@ export type ChannelSelection =
   | { kind: "customManage" }
   | { kind: "customList"; list: CustomListSummary }
   | { kind: "foreignManage" }
-  | { kind: "foreignOrigin"; origin: ForeignOriginSummary }
-  | { kind: "mockBee" }
-  | { kind: "reports" };
+  | { kind: "foreignOrigin"; origin: ForeignOriginSummary };
 
 interface ChannelsDashboardProps {
   onSelectChannel: (selection: ChannelSelection) => void;
@@ -105,7 +103,7 @@ export function ChannelsDashboard({ onSelectChannel }: ChannelsDashboardProps) {
       Icon: Trophy,
       bgClass: "bg-[hsl(var(--channel-yellow))]",
       iconColorClass: "text-warning",
-      onClick: () => onSelectChannel({ kind: "mockBee" }),
+      onClick: () => {},
     },
     {
       key: "reports",
@@ -114,7 +112,7 @@ export function ChannelsDashboard({ onSelectChannel }: ChannelsDashboardProps) {
       Icon: BarChart3,
       bgClass: "bg-[hsl(var(--channel-blue))]",
       iconColorClass: "text-info",
-      onClick: () => onSelectChannel({ kind: "reports" }),
+      onClick: () => {},
     },
   ];
 
@@ -127,7 +125,7 @@ export function ChannelsDashboard({ onSelectChannel }: ChannelsDashboardProps) {
           AI Spelling Coach
         </div>
         <h1 className="text-4xl sm:text-5xl font-display tracking-tight text-foreground leading-[1.05] lg:text-4xl font-semibold">
-          <span className="text-[#1e3a5f] font-serif">Master every word, </span><span className="text-primary font-serif">one at a time.</span>
+          <span className="text-foreground font-serif">Master every word, </span><span className="text-primary font-serif">one at a time.</span>
         </h1>
         <p className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
           Practice spelling with audio, smart hints, and personalized<br />
@@ -169,7 +167,7 @@ export function ChannelsDashboard({ onSelectChannel }: ChannelsDashboardProps) {
                   >
                     <Icon className="h-5 w-5" />
                   </div>
-                  <h3 className="font-display tracking-tight text-[#1e3a5f] text-lg font-serif font-semibold">
+                  <h3 className="font-display tracking-tight text-foreground text-lg font-serif font-semibold">
                     {card.title}
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">

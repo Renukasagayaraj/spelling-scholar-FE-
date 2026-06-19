@@ -1,7 +1,7 @@
-import { getAccessToken } from "@/lib/supabase";
+import { getAccessToken, supabase } from "@/lib/supabase";
 import { mockNextWord, mockCoaching, mockPronunciationAudio } from "@/lib/mocks";
 
-const BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 // When no backend URL is configured (preview/local without API server),
 // fall back to mocks so the full UI — pronunciation, coaching feedback —
 // is exercisable. Set VITE_API_BASE_URL to disable.
@@ -17,6 +17,14 @@ export class UnauthorizedError extends Error {
 async function authHeaders(): Promise<Record<string, string>> {
   const token = await getAccessToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function handle401(): Promise<never> {
+  const { data } = await supabase.auth.getSession();
+  if (data.session) {
+    await supabase.auth.signOut({ scope: "local" });
+  }
+  throw new UnauthorizedError();
 }
 
 export interface WordData {
@@ -87,6 +95,7 @@ export interface CoachingResponse {
       morphologyFocus: string;
       originLabels: string[];
       morphologyLabels: string[];
+      relatedForms?: string[];
     };
   };
   errorRelevance: {
@@ -110,6 +119,11 @@ export interface CoachingResponse {
   wordBreakdown: {
     displayChunks: string[];
     chunkReason: string;
+    matchedPatterns: {
+      label: string;
+      matchedText?: string;
+      matchedParts?: string[];
+    }[];
   };
   conceptLabels: {
     originLabels: string[];
@@ -209,7 +223,7 @@ export async function fetchNextWord(
   const headers = opts.customListId ? await authHeaders() : {};
   try {
     const res = await fetch(`${BASE_URL}/api/words/next?${params}`, { headers });
-    if (res.status === 401) throw new UnauthorizedError();
+    if (res.status === 401) await handle401();
     if (!res.ok) throw new Error("Failed to fetch word");
     return await res.json();
   } catch (err) {
@@ -257,7 +271,7 @@ export async function fetchCustomLists(): Promise<CustomListsResponse> {
   if (customListsCache) return customListsCache;
   customListsCache = (async () => {
     const res = await fetch(`${BASE_URL}/api/custom-lists`, { headers: await authHeaders() });
-    if (res.status === 401) throw new UnauthorizedError();
+    if (res.status === 401) await handle401();
     if (!res.ok) throw new Error("Failed to fetch custom lists");
     return res.json();
   })().catch((err) => {
@@ -271,7 +285,7 @@ export async function fetchCustomListWords(listId: string): Promise<WordData[]> 
   const res = await fetch(`${BASE_URL}/api/custom-lists/${encodeURIComponent(listId)}`, {
     headers: await authHeaders(),
   });
-  if (res.status === 401) throw new UnauthorizedError();
+  if (res.status === 401) await handle401();
   if (!res.ok) throw new Error("Failed to fetch custom list words");
   const data = await res.json();
 
@@ -288,7 +302,7 @@ export async function importCustomWordList(payload: ImportCustomListRequest): Pr
     headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify(payload),
   });
-  if (res.status === 401) throw new UnauthorizedError();
+  if (res.status === 401) await handle401();
   if (!res.ok) throw new Error("Failed to import custom list");
   invalidateCustomListsCache();
   return res.json();
@@ -339,7 +353,7 @@ export async function fetchSubscriptionStatus(): Promise<SubscriptionStatus> {
   const res = await fetch(`${BASE_URL}/api/stripe/subscription-status`, {
     headers: await authHeaders(),
   });
-  if (res.status === 401) return { subscribed: false };
+  if (res.status === 401) await handle401();
   if (!res.ok) throw new Error("Failed to fetch subscription status");
   return res.json();
 }
@@ -356,7 +370,7 @@ export async function createStripeCheckoutSession(): Promise<{ url: string }> {
       ...(await authHeaders()),
     },
   });
-  if (res.status === 401) throw new UnauthorizedError();
+  if (res.status === 401) await handle401();
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
     throw new Error(errData.error || "Failed to create checkout session");
@@ -375,76 +389,10 @@ export async function createStripePortalSession(): Promise<{ url: string }> {
       ...(await authHeaders()),
     },
   });
-  if (res.status === 401) throw new UnauthorizedError();
+  if (res.status === 401) await handle401();
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
     throw new Error(errData.error || "Failed to create portal session");
-  }
-  return res.json();
-}
-
-export interface DbUser {
-  id: string;
-  email: string | null;
-  full_name: string | null;
-  child_id: string | null;
-  age: number | null;
-  grade: string | null;
-  spelling_level: string | null;
-  theme_preference: string;
-  audio_enabled: boolean;
-}
-
-export interface UserProfileUpdate {
-  full_name?: string;
-  child_id?: string;
-  age?: number;
-  grade?: string;
-  spelling_level?: string;
-  theme_preference?: string;
-  audio_enabled?: boolean;
-}
-
-export async function fetchCurrentUserProfile(): Promise<{ user: DbUser }> {
-  if (USE_MOCK_FALLBACK) {
-    return {
-      user: {
-        id: "mock-id",
-        email: "mock@example.com",
-        full_name: "Mock User",
-        child_id: "c1",
-        age: 10,
-        grade: "5",
-        spelling_level: "competition",
-        theme_preference: "default",
-        audio_enabled: true,
-      }
-    };
-  }
-  const res = await fetch(`${BASE_URL}/api/auth/me`, {
-    headers: await authHeaders(),
-  });
-  if (res.status === 401) throw new UnauthorizedError();
-  if (!res.ok) throw new Error("Failed to fetch user profile");
-  return res.json();
-}
-
-export async function updateUserProfile(payload: UserProfileUpdate): Promise<{ user: DbUser }> {
-  if (USE_MOCK_FALLBACK) {
-    return { user: { id: "mock-id", email: "mock@example.com", ...payload } as DbUser };
-  }
-  const res = await fetch(`${BASE_URL}/api/auth/profile`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(await authHeaders()),
-    },
-    body: JSON.stringify(payload),
-  });
-  if (res.status === 401) throw new UnauthorizedError();
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || "Failed to update user profile");
   }
   return res.json();
 }

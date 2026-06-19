@@ -91,11 +91,11 @@ export function LevelSelector({ selected, onSelect }: LevelSelectorProps) {
             )}
 
             <div className="inline-flex h-11 px-2 min-w-11 rounded-xl items-center justify-center mb-3 transition-transform duration-300 w-fit bg-white/70 group-hover:scale-110 shadow-sm">
-              <Icon className="text-[#1e3a5f]" />
+              <Icon className="text-black" />
             </div>
 
-            <div className="font-bold text-base text-[#1e3a5f]">{label}</div>
-            <div className="text-[10px] mt-1 uppercase tracking-wider font-semibold text-[#1e3a5f]/70">
+            <div className="font-bold text-base text-foreground">{label}</div>
+            <div className="text-[10px] mt-1 uppercase tracking-wider font-semibold text-foreground/70">
               {tier}
             </div>
           </button>

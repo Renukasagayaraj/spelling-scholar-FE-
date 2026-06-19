@@ -12,6 +12,8 @@ if (!supabaseConfigured) {
   );
 }
 
+// Use placeholder values when env vars are missing so createClient doesn't throw.
+// supabaseConfigured=false ensures all auth/api calls are gated and no real requests are made.
 export const supabase: SupabaseClient = createClient(
   url ?? "https://placeholder.supabase.co",
   key ?? "placeholder-anon-key",

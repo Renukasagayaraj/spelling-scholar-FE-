@@ -3,9 +3,6 @@ import { Check, Sparkles, Loader2, CreditCard, ShieldCheck } from "lucide-react"
 import {
     Dialog,
     DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { createStripeCheckoutSession } from "@/lib/api";

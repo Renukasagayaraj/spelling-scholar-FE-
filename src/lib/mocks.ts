@@ -95,6 +95,10 @@ export function mockCoaching(req: CoachingRequest): CoachingResponse {
     wordBreakdown: {
       displayChunks: chunks,
       chunkReason: "Each chunk is one syllable or a meaningful spelling unit.",
+      matchedPatterns: [
+        { label: "double consonant", matchedText: target.length > 2 ? target.slice(0, 2) : target },
+        { label: "syllable split", matchedParts: chunks.slice(0, 2) },
+      ],
     },
     conceptLabels: {
       originLabels: ["Latin"],

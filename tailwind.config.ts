@@ -105,11 +105,22 @@ export default {
           "0%": { transform: "scale(0.9)", opacity: "0" },
           "100%": { transform: "scale(1)", opacity: "1" },
         },
+        "dino-bob": {
+          "0%, 100%": { transform: "translateY(0) rotate(-2deg)" },
+          "50%": { transform: "translateY(-12px) rotate(2deg)" },
+        },
+        "dino-fly": {
+          "0%": { transform: "translateX(-20vw) translateY(0)" },
+          "50%": { transform: "translateX(50vw) translateY(-18px)" },
+          "100%": { transform: "translateX(120vw) translateY(0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "pop-in": "pop-in 0.3s ease-out",
+        "dino-bob": "dino-bob 4s ease-in-out infinite",
+        "dino-fly": "dino-fly 22s linear infinite",
       },
     },
   },

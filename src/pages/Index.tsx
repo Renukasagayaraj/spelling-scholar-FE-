@@ -7,12 +7,19 @@ import { LevelSelector } from "@/components/LevelSelector";
 import { SupportCard } from "@/components/SupportCard";
 import { CoachingResult } from "@/components/CoachingResult";
 import { DebugPanel } from "@/components/DebugPanel";
+import { ThemePicker, type ThemeKey } from "@/components/ThemePicker";
 import { type PracticeMode } from "@/components/PracticeModeSwitch";
 import { CustomListPanel } from "@/components/CustomListPanel";
 import { ForeignOriginPanel } from "@/components/ForeignOriginPanel";
 import { ChannelsDashboard, type ChannelSelection } from "@/components/ChannelsDashboard";
+import { RewardsStrip } from "@/components/RewardsStrip";
+import { LevelUpFlash } from "@/components/LevelUpFlash";
+import { DinoDecor } from "@/components/DinoDecor";
+import { useRewards } from "@/hooks/use-rewards";
 import { ArrowLeft, GraduationCap, List as ListIcon, Globe } from "lucide-react";
 import { fetchNextWord, submitSpellingAttempt, fetchPronunciationAudio } from "@/lib/api";
+import { VoiceMic } from "@/components/VoiceMic";
+import type { VoiceRespondResult } from "@/lib/voiceApi";
 import type {
   WordData,
   CoachingResponse,
@@ -26,14 +33,12 @@ import type {
 import { cn } from "@/lib/utils";
 import { AuthMenu } from "@/components/AuthMenu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { type HistoryEntry } from "@/components/SessionHistoryPanel";
+import { SessionHistorySidebar } from "@/components/SessionHistorySidebar";
 import beePng from "@/assets/bee.png";
-import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/use-auth";
 import { PaymentDialog } from "@/components/PaymentDialog";
 import { AuthDialog } from "@/components/AuthDialog";
-import { Trophy, BarChart3 } from "lucide-react";
-import { toast } from "sonner";
-import { Header } from "@/components/Header";
 
 const DEFAULT_PROFILE = {
   childId: "c1",
@@ -43,16 +48,12 @@ const DEFAULT_PROFILE = {
 };
 
 export default function Index() {
-  const { playCheer } = useCheer();
-  const { user, dbUser, subscribed } = useAuth();
-  const activeProfile = dbUser
-    ? {
-      childId: dbUser.child_id || "c1",
-      age: dbUser.age || 10,
-      grade: dbUser.grade || "5",
-      spellingLevel: dbUser.spelling_level || "competition",
-    }
-    : DEFAULT_PROFILE;
+  const [theme, setTheme] = useState<ThemeKey>(() => {
+    return (localStorage.getItem("spelling-coach-theme") as ThemeKey) || "default";
+  });
+  const { soundEnabled, toggleSound, playCheer } = useCheer();
+  const rewards = useRewards();
+  const { user, subscribed } = useAuth();
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [level, setLevel] = useState(0);
@@ -69,6 +70,7 @@ export default function Index() {
   const [defOpen, setDefOpen] = useState(false);
   const [exOpen, setExOpen] = useState(false);
   const [origOpen, setOrigOpen] = useState(false);
+  const [posOpen, setPosOpen] = useState(false);
 
   const supportsViewed = useRef<SupportsUsed>({ definitionViewed: false, exampleViewed: false, originViewed: false });
 
@@ -80,7 +82,7 @@ export default function Index() {
   });
 
   // Channel / mode state. activeChannel = null means show the dashboard.
-  const [activeChannel, setActiveChannel] = useState<string | null>(null);
+  const [activeChannel, setActiveChannel] = useState<PracticeMode | null>(null);
   const [practiceMode, setPracticeMode] = useState<PracticeMode>("standard");
   const [selectedCustomList, setSelectedCustomList] = useState<CustomListSummary | null>(null);
   const [customPracticeActive, setCustomPracticeActive] = useState(false);
@@ -90,15 +92,22 @@ export default function Index() {
   const [selectedForeignOriginDetails, setSelectedForeignOriginDetails] = useState<ForeignOriginDetail | null>(null);
   const [foreignPracticeActive, setForeignPracticeActive] = useState(false);
 
+  // Session word history (per practice session)
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [activeHistoryIndex, setActiveHistoryIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    if (dbUser && dbUser.spelling_level) {
-      let mappedLvl = 1;
-      if (dbUser.spelling_level === "intermediate") mappedLvl = 2;
-      else if (dbUser.spelling_level === "advanced" || dbUser.spelling_level === "competition") mappedLvl = 3;
-      setLevel(mappedLvl);
-    }
-  }, [dbUser]);
+    document.documentElement.setAttribute("data-theme", theme === "default" ? "" : theme);
+    localStorage.setItem("spelling-coach-theme", theme);
+  }, [theme]);
+
+  // Reset to default if current theme isn't allowed for the active level
+  useEffect(() => {
+    if (theme === "dino" && level !== 1) setTheme("default");
+    if (theme === "sunset-sea" && level !== 3) setTheme("default");
+    if (theme === "pastel-sky" && level !== 2) setTheme("default");
+    if (theme === "rainbow" && level !== 1) setTheme("default");
+  }, [level, theme]);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -109,6 +118,7 @@ export default function Index() {
     setDefOpen(false);
     setExOpen(false);
     setOrigOpen(false);
+    setPosOpen(false);
     setAudioError(null);
     setError(null);
     if (audioUrlRef.current) {
@@ -127,6 +137,7 @@ export default function Index() {
     setDefOpen(false);
     setExOpen(false);
     setOrigOpen(false);
+    setPosOpen(false);
     setAudioError(null);
     if (audioUrlRef.current) {
       URL.revokeObjectURL(audioUrlRef.current);
@@ -195,14 +206,6 @@ export default function Index() {
         setForeignPracticeActive(true);
         loadWord({ foreignOrigin: selection.origin.origin });
         break;
-      case "mockBee":
-        setPracticeMode("standard");
-        setActiveChannel("mockBee");
-        break;
-      case "reports":
-        setPracticeMode("standard");
-        setActiveChannel("reports");
-        break;
     }
   };
 
@@ -210,6 +213,8 @@ export default function Index() {
     setActiveChannel(null);
     setCustomPracticeActive(false);
     setForeignPracticeActive(false);
+    // Keep session history across dashboard visits; clears on reload.
+    setActiveHistoryIndex(null);
     resetWordState();
   };
 
@@ -232,6 +237,11 @@ export default function Index() {
     loadWord({ foreignOrigin: selectedForeignOrigin.origin });
   };
 
+  const effectiveLevel = (): number => {
+    if (practiceMode === "custom" && selectedCustomList) return Number(selectedCustomList.level) || level;
+    return level;
+  };
+
   const handleSubmit = async () => {
     if (!word || !attempt.trim()) return;
     setSubmitting(true);
@@ -240,26 +250,38 @@ export default function Index() {
       const res = await submitSpellingAttempt({
         targetWord: word.word,
         childAttempt: attempt.trim().toLowerCase(),
-        childProfile: activeProfile,
+        childProfile: DEFAULT_PROFILE,
         supportsUsed: { ...supportsViewed.current },
         sessionContext: session,
       });
       setResult(res);
+      setHistory((h) => {
+        const next = [...h, { word, attempt: attempt.trim(), result: res }];
+        setActiveHistoryIndex(next.length - 1);
+        return next;
+      });
+      const lvl = effectiveLevel();
       if (res.correctness?.isCorrect) {
-        playCheer();
-        const fire = (origin: { x: number; y: number }) =>
-          confetti({
-            particleCount: 80,
-            spread: 70,
-            startVelocity: 45,
-            origin,
-            zIndex: 9999,
-            colors: ["#f59e0b", "#10b981", "#6366f1", "#ef4444", "#eab308"],
-          });
-        fire({ x: 0.2, y: 0.7 });
-        fire({ x: 0.5, y: 0.6 });
-        fire({ x: 0.8, y: 0.7 });
-        setTimeout(() => fire({ x: 0.5, y: 0.5 }), 200);
+        if (lvl !== 3) playCheer();
+        rewards.recordCorrect(lvl);
+        // Confetti only for Level 1 (younger kids). L2/L3 get streaks + fanfare instead.
+        if (lvl === 1) {
+          const fire = (origin: { x: number; y: number }) =>
+            confetti({
+              particleCount: 80,
+              spread: 70,
+              startVelocity: 45,
+              origin,
+              zIndex: 9999,
+              colors: ["#f59e0b", "#10b981", "#6366f1", "#ef4444", "#eab308"],
+            });
+          fire({ x: 0.2, y: 0.7 });
+          fire({ x: 0.5, y: 0.6 });
+          fire({ x: 0.8, y: 0.7 });
+          setTimeout(() => fire({ x: 0.5, y: 0.5 }), 200);
+        }
+      } else {
+        rewards.recordIncorrect(lvl);
       }
       setSession((s) => ({
         ...s,
@@ -274,6 +296,7 @@ export default function Index() {
   };
 
   const handleNextWord = () => {
+    setActiveHistoryIndex(null);
     if (practiceMode === "custom" && customPracticeActive && selectedCustomList) {
       loadWord({ customListId: selectedCustomList.id });
     } else if (practiceMode === "foreignOrigin" && foreignPracticeActive && selectedForeignOrigin) {
@@ -312,6 +335,9 @@ export default function Index() {
     setOrigOpen((v) => !v);
     supportsViewed.current.originViewed = true;
   };
+  const togglePos = () => {
+    setPosOpen((v) => !v);
+  };
 
   const hasWord = !!word && !loading;
   const submitted = !!result;
@@ -325,17 +351,62 @@ export default function Index() {
     (activeChannel === "custom" && customPracticeActive) ||
     (activeChannel === "foreignOrigin" && foreignPracticeActive);
 
-  const channelLabels: Record<string, { label: string; Icon: typeof GraduationCap }> = {
+  const channelLabels: Record<PracticeMode, { label: string; Icon: typeof GraduationCap }> = {
     standard: { label: "Standard Practice", Icon: GraduationCap },
     custom: { label: "My Word Lists", Icon: ListIcon },
     foreignOrigin: { label: "Language Origin", Icon: Globe },
-    mockBee: { label: "Mock Bee Practice", Icon: Trophy },
-    reports: { label: "Performance Reports", Icon: BarChart3 },
   };
 
   return (
     <div className="min-h-screen">
-      <Header onBackToDashboard={handleBackToDashboard} />
+      {theme === "dino" && <DinoDecor />}
+      {showPractice && (
+        <SessionHistorySidebar
+          history={history}
+          activeIndex={activeHistoryIndex}
+          onSelect={(i) => {
+            const entry = history[i];
+            if (!entry) return;
+            setWord(entry.word);
+            setAttempt(entry.attempt);
+            setResult(entry.result);
+            setActiveHistoryIndex(i);
+          }}
+        />
+      )}
+      {/* Top app bar — webapp style */}
+      <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-transparent backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-8">
+          <button
+            onClick={handleBackToDashboard}
+            className="flex items-center gap-2 rounded-lg px-1.5 py-1 -ml-1.5 hover:bg-primary/10 transition-colors"
+            title="Home"
+          >
+            <img src={beePng} alt="Spelling bee mascot" className="h-14 w-auto mt-1" />
+            <span className="text-lg font-display tracking-tight text-foreground font-serif font-semibold">
+              AI Spelling Coach
+            </span>
+          </button>
+          <div className="flex items-center gap-1">
+            <AuthMenu />
+            {showPractice && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={toggleSound}
+                    className="p-2 rounded-lg bg-muted text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                    aria-label="Sound"
+                  >
+                    {soundEnabled ? <Volume1 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Sound</TooltipContent>
+              </Tooltip>
+            )}
+            <ThemePicker current={theme} onChange={setTheme} level={showDashboard ? undefined : effectiveLevel()} />
+          </div>
+        </div>
+      </header>
 
       <div className={cn(
         "mx-auto px-4 sm:px-8 py-6 sm:py-10",
@@ -354,17 +425,19 @@ export default function Index() {
               <ArrowLeft className="h-4 w-4" />
               Go Back
             </button>
-            {activeChannel && channelLabels[activeChannel] && (
-              <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                {(() => {
-                  const { Icon, label } = channelLabels[activeChannel];
-                  return (
-                    <>
-                      <Icon className="h-4 w-4 text-primary" />
-                      {label}
-                    </>
-                  );
-                })()}
+            {activeChannel && (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                  {(() => {
+                    const { Icon, label } = channelLabels[activeChannel];
+                    return (
+                      <>
+                        <Icon className="h-4 w-4 text-primary" />
+                        {label}
+                      </>
+                    );
+                  })()}
+                </div>
               </div>
             )}
           </div>
@@ -440,8 +513,8 @@ export default function Index() {
           </div>
         )}
 
-        {/* Standard: Level Selector */}
-        {showStandardFlow && (
+        {/* Standard: Level Selector (only before a word is loaded) */}
+        {showStandardFlow && !hasWord && !loading && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -491,6 +564,12 @@ export default function Index() {
             animate={{ opacity: 1, y: 0 }}
             className="rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm shadow-sm p-6 sm:p-8 space-y-3"
           >
+            {/* Rewards strip — all levels */}
+            <RewardsStrip
+              stats={rewards.getStats(effectiveLevel())}
+              newBadge={rewards.newBadge}
+              onClearNewBadge={rewards.clearNewBadge}
+            />
             {/* Header: word metadata + pronounce */}
             <div className="grid grid-cols-1 md:grid-cols-5 gap-6 pb-3 border-b border-border/50">
               <div className="md:col-span-2 flex items-center gap-2 flex-wrap">
@@ -509,9 +588,7 @@ export default function Index() {
                 >
                   {word.difficulty}
                 </span>
-                <span className="text-xs rounded-full bg-chip-accent text-chip-accent-foreground px-2.5 py-1 font-medium">
-                  {word.partOfSpeech}
-                </span>
+
               </div>
               <div className="md:col-span-3 flex flex-col items-center">
                 <button
@@ -530,7 +607,7 @@ export default function Index() {
             {!submitted ? (
               <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                 <div className="md:col-span-2 space-y-2">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-[#1e3a5f] font-display mb-2 px-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground font-display mb-2 px-3">
                     Hints
                   </h3>
                   <SupportCard
@@ -546,10 +623,11 @@ export default function Index() {
                     onToggle={toggleEx}
                   />
                   <SupportCard type="origin" content={word.origin} isOpen={origOpen} onToggle={toggleOrig} />
+                  <SupportCard type="partOfSpeech" content={word.partOfSpeech} isOpen={posOpen} onToggle={togglePos} />
                 </div>
 
-                <div className="md:col-span-3 flex flex-col h-full">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-[#1e3a5f] font-display mb-2 px-3">
+                <div className="md:col-span-3 flex flex-col">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground font-display mb-2 px-3">
                     Your answer
                   </h3>
                   <input
@@ -567,11 +645,35 @@ export default function Index() {
                   <button
                     onClick={handleSubmit}
                     disabled={!attempt.trim() || submitting}
-                    className="mt-auto w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 font-semibold text-sm transition-all bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                    className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 font-semibold text-sm transition-all bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
                   >
                     {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     {submitting ? "Checking…" : "Submit"}
                   </button>
+                  <VoiceMic
+                    targetWord={word.word}
+                    disabled={submitting || audioLoading}
+                    onSpellingAttempt={(parsed) => {
+                      setAttempt(parsed);
+                      setTimeout(() => inputRef.current?.focus(), 50);
+                    }}
+                    onSupportResponse={(res) => {
+                      if (res.intent === "definition") {
+                        setDefOpen(true);
+                        supportsViewed.current.definitionViewed = true;
+                      } else if (res.intent === "example_sentence") {
+                        setExOpen(true);
+                        supportsViewed.current.exampleViewed = true;
+                      } else if (res.intent === "origin") {
+                        setOrigOpen(true);
+                        supportsViewed.current.originViewed = true;
+                      } else if (res.intent === "repeat_word" && !res.audioBase64) {
+                        // Only play local pronunciation if backend didn't return its own audio.
+                        // VoiceMic handles playback when audioBase64 is present — avoids double voices.
+                        playPronunciation();
+                      }
+                    }}
+                  />
                 </div>
               </div>
             ) : (
@@ -579,7 +681,7 @@ export default function Index() {
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                     <div className="md:col-span-2 space-y-2">
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-[#1e3a5f] font-display mb-2 mx-[8px]">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground font-display mb-2 mx-[8px]">
                         Word details
                       </h3>
                       <SupportCard
@@ -595,6 +697,7 @@ export default function Index() {
                         onToggle={toggleEx}
                       />
                       <SupportCard type="origin" content={word.origin} isOpen={origOpen} onToggle={toggleOrig} />
+                      <SupportCard type="partOfSpeech" content={word.partOfSpeech} isOpen={posOpen} onToggle={togglePos} />
                     </div>
                     <div className="md:col-span-3">
                       <div className="rounded-xl border border-border bg-background p-4 text-center space-y-1">
@@ -646,91 +749,14 @@ export default function Index() {
           selectedForeignOriginDetails={selectedForeignOriginDetails}
           foreignPracticeActive={foreignPracticeActive}
         />
+
+        <footer className="mt-10 pt-6 border-t border-border/40 text-center">
+          <p className="text-xs text-muted-foreground">
+            &copy; {new Date().getFullYear()} AI Spelling Coach. All rights reserved.
+          </p>
+        </footer>
       </div>
-
-      {/* Mock Bee Screen */}
-      {activeChannel === "mockBee" && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm shadow-sm p-6 sm:p-8 space-y-6 text-center"
-        >
-          <div className="mx-auto w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
-            <Trophy className="h-6 w-6" />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-2xl font-serif font-bold text-[#1e3a5f]">Mock Bee Challenge</h2>
-            <p className="text-muted-foreground text-sm max-w-md mx-auto">
-              Test your skills under realistic spelling bee conditions with a timer and off-list competition words.
-            </p>
-          </div>
-          <div className="border border-border/60 rounded-xl p-6 bg-background/50 max-w-sm mx-auto space-y-4">
-            <div className="text-left space-y-1">
-              <span className="text-xs font-semibold text-muted-foreground uppercase">Format</span>
-              <p className="text-sm font-semibold">15 Words · 30 Seconds Per Word</p>
-            </div>
-            <div className="text-left space-y-1">
-              <span className="text-xs font-semibold text-muted-foreground uppercase">Difficulty</span>
-              <p className="text-sm font-semibold">Random (based on actual Spelling Bee pools)</p>
-            </div>
-            <button
-              onClick={() => toast.success("Mock Bee session starting soon!")}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-lg py-2.5 font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm"
-            >
-              Start Simulation
-            </button>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Reports Screen */}
-      {activeChannel === "reports" && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm shadow-sm p-6 sm:p-8 space-y-6"
-        >
-          <div className="flex items-center gap-3 border-b border-border/50 pb-4">
-            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
-              <BarChart3 className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="text-xl font-serif font-bold text-[#1e3a5f]">Spelling Performance Report</h2>
-              <p className="text-xs text-muted-foreground">Historical analysis and weakness tracking</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="border border-border/60 rounded-xl p-4 bg-background/50 text-center">
-              <p className="text-xs text-muted-foreground font-medium uppercase">Overall Accuracy</p>
-              <p className="text-3xl font-bold text-[#1e3a5f] mt-1">87.5%</p>
-            </div>
-            <div className="border border-border/60 rounded-xl p-4 bg-background/50 text-center">
-              <p className="text-xs text-muted-foreground font-medium uppercase">Words Mastered</p>
-              <p className="text-3xl font-bold text-success mt-1">42</p>
-            </div>
-            <div className="border border-border/60 rounded-xl p-4 bg-background/50 text-center">
-              <p className="text-xs text-muted-foreground font-medium uppercase">Trouble Words</p>
-              <p className="text-3xl font-bold text-destructive mt-1">4</p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold uppercase text-muted-foreground tracking-wider">Words to Review</h3>
-            <div className="border border-border/60 rounded-xl p-4 bg-background/30 space-y-2">
-              <div className="flex justify-between text-sm py-1 border-b border-border/30">
-                <span className="font-semibold text-destructive">conscious</span>
-                <span className="text-xs text-muted-foreground">Missed 3 times</span>
-              </div>
-              <div className="flex justify-between text-sm py-1 border-b border-border/30">
-                <span className="font-semibold text-destructive">occurrence</span>
-                <span className="text-xs text-muted-foreground">Missed 2 times</span>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
+      <LevelUpFlash streak={rewards.milestoneHit} onDone={rewards.clearMilestone} />
       <PaymentDialog open={paymentOpen} onOpenChange={setPaymentOpen} />
       <AuthDialog open={authOpen} onOpenChange={setAuthOpen} />
     </div>

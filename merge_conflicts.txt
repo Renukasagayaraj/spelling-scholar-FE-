@@ -1,0 +1,857 @@
+﻿diff --cc package.json
+index 07d383b,4c6a5b9..0000000
+--- a/package.json
++++ b/package.json
+@@@ -41,11 -41,8 +41,14 @@@
+      "@radix-ui/react-toggle": "^1.1.9",
+      "@radix-ui/react-toggle-group": "^1.1.10",
+      "@radix-ui/react-tooltip": "^1.2.7",
+ +    "@sentry/react": "^10.55.0",
+      "@supabase/supabase-js": "^2.103.3",
+      "@tanstack/react-query": "^5.83.0",
+++<<<<<<< HEAD
+ +    "@vercel/analytics": "^2.0.1",
+ +    "@vercel/speed-insights": "^2.0.0",
+++=======
+++>>>>>>> bumblebee/latestUI
+      "canvas-confetti": "^1.9.4",
+      "class-variance-authority": "^0.7.1",
+      "clsx": "^2.1.1",
+diff --cc src/App.tsx
+index c971f5a,e34be60..0000000
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@@ -5,10 -5,8 +5,14 @@@ import { Toaster } from "@/components/u
+  import { TooltipProvider } from "@/components/ui/tooltip";
+  import { AuthProvider } from "@/hooks/use-auth";
+  import Index from "./pages/Index.tsx";
+++<<<<<<< HEAD
+ +import Privacy from "./pages/Privacy.tsx";
+ +import DataDeletion from "./pages/DataDeletion.tsx";
+++=======
++ import Landing from "./pages/Landing.tsx";
+++>>>>>>> bumblebee/latestUI
+  import NotFound from "./pages/NotFound.tsx";
+ +import Profile from "./pages/Profile.tsx";
+  
+  const queryClient = new QueryClient();
+  
+@@@ -21,9 -19,7 +25,13 @@@ const App = () => 
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+++<<<<<<< HEAD
+ +            <Route path="/privacy" element={<Privacy />} />
+ +            <Route path="/profile" element={<Profile />} />
+ +            <Route path="/data-deletion" element={<DataDeletion />} />
+++=======
++             <Route path="/landing" element={<Landing />} />
+++>>>>>>> bumblebee/latestUI
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+diff --cc src/components/AuthMenu.tsx
+index f301ecd,f54a4b4..0000000
+--- a/src/components/AuthMenu.tsx
++++ b/src/components/AuthMenu.tsx
+@@@ -18,36 -16,13 +18,46 @@@ export function AuthMenu() 
+    if (user) {
+      const label = user.email ?? user.user_metadata?.name ?? "Signed in";
+      return (
+++<<<<<<< HEAD
+ +      <div className="flex items-center gap-2">
+ +        <button
+ +          onClick={() => navigate("/profile")}
+ +          className="hidden sm:inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 px-3 py-1.5 rounded-full border border-border/40 transition-all shadow-sm active:scale-95 shrink-0"
+ +          title="View Account Profile"
+ +        >
+ +          <div className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[10px] shrink-0">
+ +            {label.charAt(0).toUpperCase()}
+ +          </div>
+ +          <span className="truncate max-w-[120px]">{label}</span>
+ +          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
+ +        </button>
+ +
+ +        {subscribed ? (
+ +          <button
+ +            onClick={() => navigate("/profile")}
+ +            className="flex items-center gap-1 text-xs font-bold bg-amber-400 text-amber-950 px-2.5 py-1 rounded-full hover:bg-amber-500 transition-colors shadow-sm"
+ +            title="Premium Subscription Active - View Billing Settings"
+ +          >
+ +            <Sparkles className="h-3 w-3 fill-current" />
+ +            Premium
+ +          </button>
+ +        ) : (
+ +          <button
+ +            onClick={() => navigate("/profile")}
+ +            className="flex items-center gap-1 text-xs font-bold border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2.5 py-1 rounded-full hover:bg-amber-500 hover:text-white transition-all shadow-sm"
+ +          >
+ +            Upgrade
+ +          </button>
+ +        )}
+++=======
++       <div className="flex items-center gap-1.5">
++         <span
++           className="hidden sm:inline-flex items-center gap-1.5 text-sm text-muted-foreground max-w-[200px] truncate"
++           title={label}
++         >
++           <UserIcon className="h-4 w-4" /> {label}
++         </span>
+++>>>>>>> bumblebee/latestUI
+          <button
+            onClick={() => signOut()}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+@@@ -62,8 -37,8 +72,13 @@@
+    return (
+      <>
+        <button
+++<<<<<<< HEAD
+ +        onClick={() => setOpenAuth(true)}
+ +        className="font-medium px-3 py-1.5 rounded-lg text-[#1e3a5f] hover:text-primary transition-colors text-base"
+++=======
++         onClick={() => setOpen(true)}
++         className="font-medium px-3 py-1.5 rounded-lg text-foreground hover:text-primary transition-colors text-base"
+++>>>>>>> bumblebee/latestUI
+          title="Sign in"
+        >
+          Sign in
+diff --cc src/components/ChannelsDashboard.tsx
+index f76c279,9d37ab8..0000000
+--- a/src/components/ChannelsDashboard.tsx
++++ b/src/components/ChannelsDashboard.tsx
+@@@ -125,7 -125,7 +125,11 @@@ export function ChannelsDashboard({ onS
+            AI Spelling Coach
+          </div>
+          <h1 className="text-4xl sm:text-5xl font-display tracking-tight text-foreground leading-[1.05] lg:text-4xl font-semibold">
+++<<<<<<< HEAD
+ +          <span className="text-[#1e3a5f] font-serif">Master every word, </span><span className="text-primary font-serif">one at a time.</span>
+++=======
++           <span className="text-foreground font-serif">Master every word, </span><span className="text-primary font-serif">one at a time.</span>
+++>>>>>>> bumblebee/latestUI
+          </h1>
+          <p className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
+            Practice spelling with audio, smart hints, and personalized<br />
+@@@ -167,7 -167,7 +171,11 @@@
+                    >
+                      <Icon className="h-5 w-5" />
+                    </div>
+++<<<<<<< HEAD
+ +                  <h3 className="font-display tracking-tight text-[#1e3a5f] text-lg font-serif font-semibold">
+++=======
++                   <h3 className="font-display tracking-tight text-foreground text-lg font-serif font-semibold">
+++>>>>>>> bumblebee/latestUI
+                      {card.title}
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
+diff --cc src/components/CoachingResult.tsx
+index 1af50f1,df69e2f..0000000
+--- a/src/components/CoachingResult.tsx
++++ b/src/components/CoachingResult.tsx
+@@@ -113,7 -146,7 +146,11 @@@ export function CoachingResult({ result
+        {/* Teaching Decision - hidden for cleaner UX */}
+  
+        {/* Explanation */}
+++<<<<<<< HEAD
+ +      {!isLevel1 && (
+++=======
++       {!isLevel1 && !isCorrect && coachingText.fullExplanation && (
+++>>>>>>> bumblebee/latestUI
+          <Section icon={BookOpen} title="Explanation">
+            <p>{coachingText.fullExplanation}</p>
+          </Section>
+@@@ -133,29 -167,8 +171,34 @@@
+          </Section>
+        )}
+  
+++<<<<<<< HEAD
+ +      {/* Concept Labels (secondary analytics) */}
+ +      {!isLevel1 && (conceptLabels?.originLabels?.length > 0 || conceptLabels?.patternLabels?.length > 0 || conceptLabels?.morphologyLabels?.length > 0) && (
+ +        <div className="rounded-xl border border-border bg-card/60 p-4 space-y-2">
+ +          <h3 className="font-semibold text-xs flex items-center gap-2 text-muted-foreground uppercase tracking-wide">
+ +            <Puzzle className="h-3.5 w-3.5" /> Concept Labels
+ +          </h3>
+ +          <LabelChips labels={conceptLabels.patternLabels} variant="default" title="Patterns" />
+ +          <LabelChips labels={conceptLabels.originLabels} variant="accent" title="Origin" />
+ +          <LabelChips labels={conceptLabels.morphologyLabels} variant="warm" title="Morphology" />
+ +        </div>
+ +      )}
+ +
+ +      {/* Next Step */}
+ +      {!isLevel1 && (
+ +        <Section icon={ArrowRight} title="Next Step">
+ +          <p>{nextStep.practiceFocus}</p>
+ +          {nextStep.suggestedSimilarWordTypes?.length > 0 && (
+ +            <div className="mt-2">
+ +              <LabelChips labels={nextStep.suggestedSimilarWordTypes} variant="accent" title="Try words like" />
+ +            </div>
+ +          )}
+ +        </Section>
+ +      )}
+++=======
++ 
++       {/* Next Step - hidden */}
+++>>>>>>> bumblebee/latestUI
+  
+      </div>
+    );
+diff --cc src/components/LevelSelector.tsx
+index 1dedda5,dbf8007..0000000
+--- a/src/components/LevelSelector.tsx
++++ b/src/components/LevelSelector.tsx
+@@@ -91,11 -91,11 +91,19 @@@ export function LevelSelector({ selecte
+              )}
+  
+              <div className="inline-flex h-11 px-2 min-w-11 rounded-xl items-center justify-center mb-3 transition-transform duration-300 w-fit bg-white/70 group-hover:scale-110 shadow-sm">
+++<<<<<<< HEAD
+ +              <Icon className="text-[#1e3a5f]" />
+ +            </div>
+ +
+ +            <div className="font-bold text-base text-[#1e3a5f]">{label}</div>
+ +            <div className="text-[10px] mt-1 uppercase tracking-wider font-semibold text-[#1e3a5f]/70">
+++=======
++               <Icon className="text-black" />
++             </div>
++ 
++             <div className="font-bold text-base text-foreground">{label}</div>
++             <div className="text-[10px] mt-1 uppercase tracking-wider font-semibold text-foreground/70">
+++>>>>>>> bumblebee/latestUI
+                {tier}
+              </div>
+            </button>
+diff --cc src/index.css
+index 44d1c29,275c5dc..0000000
+--- a/src/index.css
++++ b/src/index.css
+@@@ -128,125 -128,6 +128,128 @@@
+      --channel-blue: 210 45% 85%;
+    }
+  
+++<<<<<<< HEAD
+ +  /* ΓöÇΓöÇ Bright & Playful ΓöÇΓöÇ */
+ +  [data-theme="bright"] {
+ +    --background: 48 100% 96%;
+ +    --foreground: 230 45% 20%;
+ +
+ +    --card: 48 80% 93%;
+ +    --card-foreground: 230 45% 20%;
+ +
+ +    --popover: 48 60% 98%;
+ +    --popover-foreground: 230 45% 20%;
+ +
+ +    --primary: 220 85% 55%;
+ +    --primary-foreground: 0 0% 100%;
+ +
+ +    --secondary: 0 80% 58%;
+ +    --secondary-foreground: 0 0% 100%;
+ +
+ +    --muted: 48 40% 90%;
+ +    --muted-foreground: 230 20% 42%;
+ +
+ +    --accent: 48 95% 52%;
+ +    --accent-foreground: 230 45% 20%;
+ +
+ +    --destructive: 0 72% 55%;
+ +    --destructive-foreground: 0 0% 100%;
+ +
+ +    --border: 48 50% 84%;
+ +    --input: 48 50% 84%;
+ +    --ring: 220 85% 55%;
+ +
+ +    --radius: 1rem;
+ +
+ +    --success: 145 70% 42%;
+ +    --success-foreground: 0 0% 100%;
+ +
+ +    --warning: 35 90% 52%;
+ +    --warning-foreground: 0 0% 100%;
+ +
+ +    --info: 200 80% 50%;
+ +    --info-foreground: 0 0% 100%;
+ +
+ +    --chip: 220 50% 92%;
+ +    --chip-foreground: 220 60% 38%;
+ +
+ +    --chip-accent: 0 50% 93%;
+ +    --chip-accent-foreground: 0 55% 42%;
+ +
+ +    --chip-warm: 48 60% 88%;
+ +    --chip-warm-foreground: 48 70% 30%;
+ +
+ +    --channel-green: 145 50% 80%;
+ +    --channel-warm: 48 70% 80%;
+ +    --channel-purple: 220 55% 84%;
+ +    --channel-yellow: 45 65% 80%;
+ +    --channel-blue: 210 60% 84%;
+ +
+ +    --font-display: 'Fredoka', sans-serif;
+ +    --font-body: 'Nunito', sans-serif;
+ +  }
+ +
+ +  /* ΓöÇΓöÇ Nature / Adventure ΓöÇΓöÇ */
+ +  [data-theme="nature"] {
+ +    --background: 100 30% 96%;
+ +    --foreground: 140 30% 14%;
+ +
+ +    --card: 100 35% 93%;
+ +    --card-foreground: 140 30% 14%;
+ +
+ +    --popover: 100 20% 98%;
+ +    --popover-foreground: 140 30% 14%;
+ +
+ +    --primary: 145 55% 38%;
+ +    --primary-foreground: 0 0% 100%;
+ +
+ +    --secondary: 195 65% 48%;
+ +    --secondary-foreground: 0 0% 100%;
+ +
+ +    --muted: 100 18% 90%;
+ +    --muted-foreground: 140 12% 42%;
+ +
+ +    --accent: 35 70% 50%;
+ +    --accent-foreground: 0 0% 100%;
+ +
+ +    --destructive: 0 65% 52%;
+ +    --destructive-foreground: 0 0% 100%;
+ +
+ +    --border: 100 20% 84%;
+ +    --input: 100 20% 84%;
+ +    --ring: 145 55% 38%;
+ +
+ +    --radius: 1rem;
+ +
+ +    --success: 145 65% 40%;
+ +    --success-foreground: 0 0% 100%;
+ +
+ +    --warning: 35 75% 52%;
+ +    --warning-foreground: 0 0% 100%;
+ +
+ +    --info: 195 65% 48%;
+ +    --info-foreground: 0 0% 100%;
+ +
+ +    --chip: 145 30% 90%;
+ +    --chip-foreground: 145 50% 28%;
+ +
+ +    --chip-accent: 195 35% 90%;
+ +    --chip-accent-foreground: 195 50% 32%;
+ +
+ +    --chip-warm: 35 45% 90%;
+ +    --chip-warm-foreground: 35 55% 32%;
+ +
+ +    --channel-green: 145 45% 78%;
+ +    --channel-warm: 35 55% 80%;
+ +    --channel-purple: 195 45% 82%;
+ +    --channel-yellow: 45 55% 80%;
+ +    --channel-blue: 210 45% 82%;
+ +
+ +    --font-display: 'Fredoka', sans-serif;
+ +    --font-body: 'Nunito', sans-serif;
+ +  }
+++=======
+++>>>>>>> bumblebee/latestUI
+  
+    /* ΓöÇΓöÇ Space / Cosmic ΓöÇΓöÇ */
+    [data-theme="space"] {
+@@@ -308,66 -189,6 +311,69 @@@
+      --font-body: 'Nunito', sans-serif;
+    }
+  
+++<<<<<<< HEAD
+ +  /* ΓöÇΓöÇ Candy / Pastel ΓöÇΓöÇ */
+ +  [data-theme="candy"] {
+ +    --background: 310 40% 97%;
+ +    --foreground: 280 25% 22%;
+ +
+ +    --card: 310 45% 94%;
+ +    --card-foreground: 280 25% 22%;
+ +
+ +    --popover: 310 30% 98%;
+ +    --popover-foreground: 280 25% 22%;
+ +
+ +    --primary: 310 55% 62%;
+ +    --primary-foreground: 0 0% 100%;
+ +
+ +    --secondary: 165 50% 55%;
+ +    --secondary-foreground: 0 0% 100%;
+ +
+ +    --muted: 310 20% 91%;
+ +    --muted-foreground: 280 12% 46%;
+ +
+ +    --accent: 260 55% 68%;
+ +    --accent-foreground: 0 0% 100%;
+ +
+ +    --destructive: 0 65% 58%;
+ +    --destructive-foreground: 0 0% 100%;
+ +
+ +    --border: 310 25% 86%;
+ +    --input: 310 25% 86%;
+ +    --ring: 310 55% 62%;
+ +
+ +    --radius: 1rem;
+ +
+ +    --success: 155 55% 48%;
+ +    --success-foreground: 0 0% 100%;
+ +
+ +    --warning: 40 75% 55%;
+ +    --warning-foreground: 280 25% 22%;
+ +
+ +    --info: 200 65% 55%;
+ +    --info-foreground: 0 0% 100%;
+ +
+ +    --chip: 310 35% 92%;
+ +    --chip-foreground: 310 45% 38%;
+ +
+ +    --chip-accent: 260 35% 92%;
+ +    --chip-accent-foreground: 260 45% 42%;
+ +
+ +    --chip-warm: 165 30% 90%;
+ +    --chip-warm-foreground: 165 45% 32%;
+ +
+ +    --channel-green: 155 40% 82%;
+ +    --channel-warm: 310 40% 85%;
+ +    --channel-purple: 260 40% 85%;
+ +    --channel-yellow: 45 50% 82%;
+ +    --channel-blue: 210 50% 85%;
+ +
+ +    --font-display: 'Fredoka', sans-serif;
+ +    --font-body: 'Nunito', sans-serif;
+ +  }
+ +
+++=======
+++>>>>>>> bumblebee/latestUI
+    /* ΓöÇΓöÇ Bee theme palette tokens ΓöÇΓöÇ */
+    [data-theme="bee"] {
+      --background: 45 55% 95%;
+diff --cc src/lib/api.ts
+index d7472ad,9b47ac6..0000000
+--- a/src/lib/api.ts
++++ b/src/lib/api.ts
+@@@ -1,4 -1,4 +1,8 @@@
+++<<<<<<< HEAD
+ +import { getAccessToken, supabase } from "@/lib/supabase";
+++=======
++ import { getAccessToken } from "@/lib/supabase";
+++>>>>>>> bumblebee/latestUI
+  import { mockNextWord, mockCoaching, mockPronunciationAudio } from "@/lib/mocks";
+  
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+@@@ -217,7 -215,7 +227,11 @@@ export async function fetchNextWord
+    const headers = opts.customListId ? await authHeaders() : {};
+    try {
+      const res = await fetch(`${BASE_URL}/api/words/next?${params}`, { headers });
+++<<<<<<< HEAD
+ +    if (res.status === 401) await handle401();
+++=======
++     if (res.status === 401) throw new UnauthorizedError();
+++>>>>>>> bumblebee/latestUI
+      if (!res.ok) throw new Error("Failed to fetch word");
+      return await res.json();
+    } catch (err) {
+@@@ -327,66 -325,4 +341,69 @@@ export async function submitSpellingAtt
+      if (USE_MOCK_FALLBACK) return mockCoaching(body);
+      throw err;
+    }
+++<<<<<<< HEAD
+ +}
+ +
+ +export interface SubscriptionStatus {
+ +  subscribed: boolean;
+ +  currentPeriodEnd?: number;
+ +  cancelAtPeriodEnd?: boolean;
+ +}
+ +
+ +export async function fetchSubscriptionStatus(): Promise<SubscriptionStatus> {
+ +  if (USE_MOCK_FALLBACK) {
+ +    const isSub = localStorage.getItem("mock_subscribed") === "true";
+ +    return {
+ +      subscribed: isSub,
+ +      currentPeriodEnd: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60, // 30 days from now
+ +      cancelAtPeriodEnd: false,
+ +    };
+ +  }
+ +  const res = await fetch(`${BASE_URL}/api/stripe/subscription-status`, {
+ +    headers: await authHeaders(),
+ +  });
+ +  if (res.status === 401) await handle401();
+ +  if (!res.ok) throw new Error("Failed to fetch subscription status");
+ +  return res.json();
+ +}
+ +
+ +export async function createStripeCheckoutSession(): Promise<{ url: string }> {
+ +  if (USE_MOCK_FALLBACK) {
+ +    localStorage.setItem("mock_subscribed", "true");
+ +    return { url: `${window.location.origin}/?payment_success=true` };
+ +  }
+ +  const res = await fetch(`${BASE_URL}/api/stripe/create-checkout-session`, {
+ +    method: "POST",
+ +    headers: {
+ +      "Content-Type": "application/json",
+ +      ...(await authHeaders()),
+ +    },
+ +  });
+ +  if (res.status === 401) await handle401();
+ +  if (!res.ok) {
+ +    const errData = await res.json().catch(() => ({}));
+ +    throw new Error(errData.error || "Failed to create checkout session");
+ +  }
+ +  return res.json();
+ +}
+ +
+ +export async function createStripePortalSession(): Promise<{ url: string }> {
+ +  if (USE_MOCK_FALLBACK) {
+ +    return { url: window.location.origin };
+ +  }
+ +  const res = await fetch(`${BASE_URL}/api/stripe/create-portal-session`, {
+ +    method: "POST",
+ +    headers: {
+ +      "Content-Type": "application/json",
+ +      ...(await authHeaders()),
+ +    },
+ +  });
+ +  if (res.status === 401) await handle401();
+ +  if (!res.ok) {
+ +    const errData = await res.json().catch(() => ({}));
+ +    throw new Error(errData.error || "Failed to create portal session");
+ +  }
+ +  return res.json();
+++=======
+++>>>>>>> bumblebee/latestUI
+  }
+diff --cc src/lib/mocks.ts
+index 443858a,9bcfbce..0000000
+--- a/src/lib/mocks.ts
++++ b/src/lib/mocks.ts
+@@@ -95,6 -95,10 +95,13 @@@ export function mockCoaching(req: Coach
+      wordBreakdown: {
+        displayChunks: chunks,
+        chunkReason: "Each chunk is one syllable or a meaningful spelling unit.",
+++<<<<<<< HEAD
+++=======
++       matchedPatterns: [
++         { label: "double consonant", matchedText: target.length > 2 ? target.slice(0, 2) : target },
++         { label: "syllable split", matchedParts: chunks.slice(0, 2) },
++       ],
+++>>>>>>> bumblebee/latestUI
+      },
+      conceptLabels: {
+        originLabels: ["Latin"],
+diff --cc src/pages/Index.tsx
+index 96857a5,5b1793c..0000000
+--- a/src/pages/Index.tsx
++++ b/src/pages/Index.tsx
+@@@ -27,10 -33,9 +33,12 @@@ import type 
+  import { cn } from "@/lib/utils";
+  import { AuthMenu } from "@/components/AuthMenu";
+  import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
++ import { type HistoryEntry } from "@/components/SessionHistoryPanel";
++ import { SessionHistorySidebar } from "@/components/SessionHistorySidebar";
+  import beePng from "@/assets/bee.png";
+ +import { useAuth } from "@/hooks/use-auth";
+ +import { PaymentDialog } from "@/components/PaymentDialog";
+ +import { AuthDialog } from "@/components/AuthDialog";
+  
+  const DEFAULT_PROFILE = {
+    childId: "c1",
+@@@ -40,13 -45,9 +48,17 @@@
+  };
+  
+  export default function Index() {
+ -  const [theme, setTheme] = useState<ThemeKey>("default");
+ +  const [theme, setTheme] = useState<ThemeKey>(() => {
+ +    return (localStorage.getItem("spelling-coach-theme") as ThemeKey) || "default";
+ +  });
+    const { soundEnabled, toggleSound, playCheer } = useCheer();
+++<<<<<<< HEAD
+ +  const { user, subscribed } = useAuth();
+ +  const [paymentOpen, setPaymentOpen] = useState(false);
+ +  const [authOpen, setAuthOpen] = useState(false);
+++=======
++   const rewards = useRewards();
+++>>>>>>> bumblebee/latestUI
+    const [level, setLevel] = useState(0);
+    const [word, setWord] = useState<WordData | null>(null);
+    const [attempt, setAttempt] = useState("");
+@@@ -82,11 -84,22 +95,23 @@@
+    const [selectedForeignOriginDetails, setSelectedForeignOriginDetails] = useState<ForeignOriginDetail | null>(null);
+    const [foreignPracticeActive, setForeignPracticeActive] = useState(false);
+  
++   // Session word history (per practice session)
++   const [history, setHistory] = useState<HistoryEntry[]>([]);
++   const [activeHistoryIndex, setActiveHistoryIndex] = useState<number | null>(null);
++ 
+    useEffect(() => {
+      document.documentElement.setAttribute("data-theme", theme === "default" ? "" : theme);
+ +    localStorage.setItem("spelling-coach-theme", theme);
+    }, [theme]);
+  
++   // Reset to default if current theme isn't allowed for the active level
++   useEffect(() => {
++     if (theme === "dino" && level !== 1) setTheme("default");
++     if (theme === "sunset-sea" && level !== 3) setTheme("default");
++     if (theme === "pastel-sky" && level !== 2) setTheme("default");
++     if (theme === "rainbow" && level !== 1) setTheme("default");
++   }, [level, theme]);
++ 
+    const inputRef = useRef<HTMLInputElement>(null);
+  
+    const resetWordState = () => {
+@@@ -224,21 -234,33 +258,51 @@@
+          sessionContext: session,
+        });
+        setResult(res);
+++<<<<<<< HEAD
+ +      if (res.correctness?.isCorrect) {
+ +        playCheer();
+ +        const fire = (origin: { x: number; y: number }) =>
+ +          confetti({
+ +            particleCount: 80,
+ +            spread: 70,
+ +            startVelocity: 45,
+ +            origin,
+ +            zIndex: 9999,
+ +            colors: ["#f59e0b", "#10b981", "#6366f1", "#ef4444", "#eab308"],
+ +          });
+ +        fire({ x: 0.2, y: 0.7 });
+ +        fire({ x: 0.5, y: 0.6 });
+ +        fire({ x: 0.8, y: 0.7 });
+ +        setTimeout(() => fire({ x: 0.5, y: 0.5 }), 200);
+++=======
++       setHistory((h) => {
++         const next = [...h, { word, attempt: attempt.trim(), result: res }];
++         setActiveHistoryIndex(next.length - 1);
++         return next;
++       });
++       const lvl = effectiveLevel();
++       if (res.correctness?.isCorrect) {
++         if (lvl !== 3) playCheer();
++         rewards.recordCorrect(lvl);
++         // Confetti only for Level 1 (younger kids). L2/L3 get streaks + fanfare instead.
++         if (lvl === 1) {
++           const fire = (origin: { x: number; y: number }) =>
++             confetti({
++               particleCount: 80,
++               spread: 70,
++               startVelocity: 45,
++               origin,
++               zIndex: 9999,
++               colors: ["#f59e0b", "#10b981", "#6366f1", "#ef4444", "#eab308"],
++             });
++           fire({ x: 0.2, y: 0.7 });
++           fire({ x: 0.5, y: 0.6 });
++           fire({ x: 0.8, y: 0.7 });
++           setTimeout(() => fire({ x: 0.5, y: 0.5 }), 200);
++         }
++       } else {
++         rewards.recordIncorrect(lvl);
+++>>>>>>> bumblebee/latestUI
+        }
+        setSession((s) => ({
+          ...s,
+@@@ -321,25 -362,27 +404,47 @@@
+              title="Home"
+            >
+              <img src={beePng} alt="Spelling bee mascot" className="h-14 w-auto mt-1" />
+++<<<<<<< HEAD
+ +            <span className="text-lg font-display tracking-tight text-[#1e3a5f] font-serif font-semibold">
+++=======
++             <span className="text-lg font-display tracking-tight text-foreground font-serif font-semibold">
+++>>>>>>> bumblebee/latestUI
+                AI Spelling Coach
+              </span>
+            </button>
+            <div className="flex items-center gap-1">
+              <AuthMenu />
+++<<<<<<< HEAD
+ +            <Tooltip>
+ +              <TooltipTrigger asChild>
+ +                <button
+ +                  onClick={toggleSound}
+ +                  className="p-2 rounded-lg bg-muted text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+ +                  aria-label="Sound"
+ +                >
+ +                  {soundEnabled ? <Volume1 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+ +                </button>
+ +              </TooltipTrigger>
+ +              <TooltipContent>Sound</TooltipContent>
+ +            </Tooltip>
+ +            <ThemePicker current={theme} onChange={setTheme} />
+++=======
++             {showPractice && (
++               <Tooltip>
++                 <TooltipTrigger asChild>
++                   <button
++                     onClick={toggleSound}
++                     className="p-2 rounded-lg bg-muted text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
++                     aria-label="Sound"
++                   >
++                     {soundEnabled ? <Volume1 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
++                   </button>
++                 </TooltipTrigger>
++                 <TooltipContent>Sound</TooltipContent>
++               </Tooltip>
++             )}
++             <ThemePicker current={theme} onChange={setTheme} level={showDashboard ? undefined : effectiveLevel()} />
+++>>>>>>> bumblebee/latestUI
+            </div>
+          </div>
+        </header>
+@@@ -447,8 -492,8 +554,13 @@@
+            </div>
+          )}
+  
+++<<<<<<< HEAD
+ +        {/* Standard: Level Selector */}
+ +        {showStandardFlow && (
+++=======
++         {/* Standard: Level Selector (only before a word is loaded) */}
++         {showStandardFlow && !hasWord && !loading && (
+++>>>>>>> bumblebee/latestUI
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+@@@ -498,6 -543,12 +610,15 @@@
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm shadow-sm p-6 sm:p-8 space-y-3"
+            >
+++<<<<<<< HEAD
+++=======
++             {/* Rewards strip ΓÇö all levels */}
++             <RewardsStrip
++               stats={rewards.getStats(effectiveLevel())}
++               newBadge={rewards.newBadge}
++               onClearNewBadge={rewards.clearNewBadge}
++             />
+++>>>>>>> bumblebee/latestUI
+              {/* Header: word metadata + pronounce */}
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-6 pb-3 border-b border-border/50">
+                <div className="md:col-span-2 flex items-center gap-2 flex-wrap">
+@@@ -516,9 -567,6 +637,12 @@@
+                  >
+                    {word.difficulty}
+                  </span>
+++<<<<<<< HEAD
+ +                <span className="text-xs rounded-full bg-chip-accent text-chip-accent-foreground px-2.5 py-1 font-medium">
+ +                  {word.partOfSpeech}
+ +                </span>
+++=======
+++>>>>>>> bumblebee/latestUI
+                </div>
+                <div className="md:col-span-3 flex flex-col items-center">
+                  <button
+@@@ -537,7 -585,7 +661,11 @@@
+              {!submitted ? (
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                  <div className="md:col-span-2 space-y-2">
+++<<<<<<< HEAD
+ +                  <h3 className="text-xs font-semibold uppercase tracking-wider text-[#1e3a5f] font-display mb-2 px-3">
+++=======
++                   <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground font-display mb-2 px-3">
+++>>>>>>> bumblebee/latestUI
+                      Hints
+                    </h3>
+                    <SupportCard
+@@@ -553,10 -601,11 +681,18 @@@
+                      onToggle={toggleEx}
+                    />
+                    <SupportCard type="origin" content={word.origin} isOpen={origOpen} onToggle={toggleOrig} />
+++<<<<<<< HEAD
+ +                </div>
+ +
+ +                <div className="md:col-span-3 flex flex-col h-full">
+ +                  <h3 className="text-xs font-semibold uppercase tracking-wider text-[#1e3a5f] font-display mb-2 px-3">
+++=======
++                   <SupportCard type="partOfSpeech" content={word.partOfSpeech} isOpen={posOpen} onToggle={togglePos} />
++                 </div>
++ 
++                 <div className="md:col-span-3 flex flex-col">
++                   <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground font-display mb-2 px-3">
+++>>>>>>> bumblebee/latestUI
+                      Your answer
+                    </h3>
+                    <input
+@@@ -574,11 -623,35 +710,42 @@@
+                    <button
+                      onClick={handleSubmit}
+                      disabled={!attempt.trim() || submitting}
+++<<<<<<< HEAD
+ +                    className="mt-auto w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 font-semibold text-sm transition-all bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+++=======
++                     className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 font-semibold text-sm transition-all bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+++>>>>>>> bumblebee/latestUI
+                    >
+                      {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      {submitting ? "CheckingΓÇª" : "Submit"}
+                    </button>
+++<<<<<<< HEAD
+++=======
++                   <VoiceMic
++                     targetWord={word.word}
++                     disabled={submitting || audioLoading}
++                     onSpellingAttempt={(parsed) => {
++                       setAttempt(parsed);
++                       setTimeout(() => inputRef.current?.focus(), 50);
++                     }}
++                     onSupportResponse={(res) => {
++                       if (res.intent === "definition") {
++                         setDefOpen(true);
++                         supportsViewed.current.definitionViewed = true;
++                       } else if (res.intent === "example_sentence") {
++                         setExOpen(true);
++                         supportsViewed.current.exampleViewed = true;
++                       } else if (res.intent === "origin") {
++                         setOrigOpen(true);
++                         supportsViewed.current.originViewed = true;
++                       } else if (res.intent === "repeat_word" && !res.audioBase64) {
++                         // Only play local pronunciation if backend didn't return its own audio.
++                         // VoiceMic handles playback when audioBase64 is present ΓÇö avoids double voices.
++                         playPronunciation();
++                       }
++                     }}
++                   />
+++>>>>>>> bumblebee/latestUI
+                  </div>
+                </div>
+              ) : (
+@@@ -586,7 -659,7 +753,11 @@@
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                      <div className="md:col-span-2 space-y-2">
+++<<<<<<< HEAD
+ +                      <h3 className="text-xs font-semibold uppercase tracking-wider text-[#1e3a5f] font-display mb-2 mx-[8px]">
+++=======
++                       <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground font-display mb-2 mx-[8px]">
+++>>>>>>> bumblebee/latestUI
+                          Word details
+                        </h3>
+                        <SupportCard
+@@@ -602,6 -675,7 +773,10 @@@
+                          onToggle={toggleEx}
+                        />
+                        <SupportCard type="origin" content={word.origin} isOpen={origOpen} onToggle={toggleOrig} />
+++<<<<<<< HEAD
+++=======
++                       <SupportCard type="partOfSpeech" content={word.partOfSpeech} isOpen={posOpen} onToggle={togglePos} />
+++>>>>>>> bumblebee/latestUI
+                      </div>
+                      <div className="md:col-span-3">
+                        <div className="rounded-xl border border-border bg-background p-4 text-center space-y-1">
+@@@ -653,9 -727,15 +828,20 @@@
+            selectedForeignOriginDetails={selectedForeignOriginDetails}
+            foreignPracticeActive={foreignPracticeActive}
+          />
++ 
++         <footer className="mt-10 pt-6 border-t border-border/40 text-center">
++           <p className="text-xs text-muted-foreground">
++             &copy; {new Date().getFullYear()} AI Spelling Coach. All rights reserved.
++           </p>
++         </footer>
+        </div>
+++<<<<<<< HEAD
+ +      <PaymentDialog open={paymentOpen} onOpenChange={setPaymentOpen} />
+ +      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} />
+++=======
++ 
++       <LevelUpFlash streak={rewards.milestoneHit} onDone={rewards.clearMilestone} />
+++>>>>>>> bumblebee/latestUI
+      </div>
+    );
+  }
