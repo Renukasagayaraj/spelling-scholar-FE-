@@ -17,9 +17,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { createStripePortalSession, createStripeCheckoutSession } from "@/lib/api";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import beePng from "@/assets/bee.png";
-import { AuthMenu } from "@/components/AuthMenu";
-import { ThemePicker, type ThemeKey } from "@/components/ThemePicker";
+import { Header } from "@/components/Header";
+import { type ThemeKey } from "@/components/ThemePicker";
 
 export default function Profile() {
     const {
@@ -189,23 +188,11 @@ export default function Profile() {
     return (
         <div className="min-h-screen">
             {/* Top Header */}
-            <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-transparent backdrop-blur-md">
-                <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4 sm:px-8">
-                    <Link
-                        to="/"
-                        className="flex items-center gap-2 rounded-lg px-1.5 py-1 -ml-1.5 hover:bg-primary/10 transition-colors"
-                    >
-                        <img src={beePng} alt="Spelling bee mascot" className="h-12 w-auto mt-1" />
-                        <span className="text-lg font-display tracking-tight text-[#1e3a5f] font-serif font-semibold">
-                            AI Spelling Coach
-                        </span>
-                    </Link>
-                    <div className="flex items-center gap-2">
-                        <AuthMenu />
-                        <ThemePicker current={theme} onChange={handleThemeChange} />
-                    </div>
-                </div>
-            </header>
+            <Header
+                theme={theme}
+                onThemeChange={handleThemeChange}
+                maxWidthClass="max-w-4xl"
+            />
 
             {/* Main Content Area */}
             <main className="mx-auto max-w-3xl px-4 sm:px-8 py-10 space-y-8">
