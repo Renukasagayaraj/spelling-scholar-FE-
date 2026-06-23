@@ -376,7 +376,6 @@ export default function Index() {
           targetWord: word.word,
           childAttempt: attempt.trim().toLowerCase(),
           isCorrect,
-          attemptNumber: session.previousAttemptsOnThisWord + 1,
           level: lvl,
           definitionViewed: supportsViewed.current.definitionViewed,
           exampleViewed: supportsViewed.current.exampleViewed,

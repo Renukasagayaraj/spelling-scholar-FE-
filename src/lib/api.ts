@@ -478,7 +478,6 @@ export interface WordAttemptRecord {
   target_word: string;
   child_attempt: string;
   is_correct: boolean;
-  attempt_number: number;
   level?: number;
   definition_viewed?: boolean;
   example_viewed?: boolean;
@@ -509,7 +508,6 @@ export interface RecordAttemptBody {
   targetWord: string;
   childAttempt: string;
   isCorrect: boolean;
-  attemptNumber?: number;
   level?: number;
   definitionViewed?: boolean;
   exampleViewed?: boolean;
