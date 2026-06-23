@@ -44,6 +44,7 @@ export interface SupportsUsed {
   definitionViewed: boolean;
   exampleViewed: boolean;
   originViewed: boolean;
+  partOfSpeechViewed?: boolean;
 }
 
 export interface ChildProfile {
@@ -455,5 +456,101 @@ export async function updateUserProfile(updates: Partial<Omit<UserProfile, "id" 
   if (!res.ok) throw new Error("Failed to update user profile");
   const data = await res.json();
   return data.profile;
+}
+
+export interface PracticeSessionRecord {
+  id: string;
+  user_id: string;
+  mode: string;
+  session_started_at: string;
+  session_ended_at?: string;
+  total_words_attempted?: number;
+  total_correct?: number;
+  accuracy_percentage?: number;
+  duration_seconds?: number;
+  created_at: string;
+}
+
+export interface WordAttemptRecord {
+  id: string;
+  session_id: string;
+  user_id: string;
+  target_word: string;
+  child_attempt: string;
+  is_correct: boolean;
+  attempt_number: number;
+  level?: number;
+  definition_viewed?: boolean;
+  example_viewed?: boolean;
+  origin_viewed?: boolean;
+  part_of_speech_viewed?: boolean;
+  repeat_word_count?: number;
+  used_voice_input?: boolean;
+  created_at: string;
+}
+
+export async function startPracticeSession(mode: string): Promise<string> {
+  const res = await fetch(`${BASE_URL}/api/sessions/start`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(await authHeaders()),
+    },
+    body: JSON.stringify({ mode }),
+  });
+  if (res.status === 401) await handle401();
+  if (!res.ok) throw new Error("Failed to start practice session");
+  const data = await res.json();
+  return data.sessionId;
+}
+
+export interface RecordAttemptBody {
+  sessionId: string;
+  targetWord: string;
+  childAttempt: string;
+  isCorrect: boolean;
+  attemptNumber?: number;
+  level?: number;
+  definitionViewed?: boolean;
+  exampleViewed?: boolean;
+  originViewed?: boolean;
+  partOfSpeechViewed?: boolean;
+  repeatWordCount?: number;
+  usedVoiceInput?: boolean;
+}
+
+export async function recordWordAttempt(body: RecordAttemptBody): Promise<string> {
+  const res = await fetch(`${BASE_URL}/api/sessions/attempts`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(await authHeaders()),
+    },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) await handle401();
+  if (!res.ok) throw new Error("Failed to record word attempt");
+  const data = await res.json();
+  return data.attemptId;
+}
+
+export interface EndSessionBody {
+  sessionId: string;
+  totalWordsAttempted: number;
+  totalCorrect: number;
+  durationSeconds: number;
+}
+
+export async function endPracticeSession(body: EndSessionBody): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/sessions/end`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(await authHeaders()),
+    },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) await handle401();
+  if (!res.ok) throw new Error("Failed to end practice session");
 }
 
