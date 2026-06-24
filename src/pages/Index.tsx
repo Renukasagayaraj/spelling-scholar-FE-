@@ -157,6 +157,62 @@ export default function Index() {
     }
   };
 
+  // Clean up any unclosed session on page reload/startup
+  useEffect(() => {
+    const saved = localStorage.getItem("active_session_recovery");
+    if (saved) {
+      try {
+        const { activeSessionId: id, sessionStartTime: start, sessionWordCount: words, sessionCorrectCount: corrects } = JSON.parse(saved);
+        if (id && start) {
+          const duration = Math.round((Date.now() - start) / 1000);
+          endPracticeSession({
+            sessionId: id,
+            totalWordsAttempted: words || 0,
+            totalCorrect: corrects || 0,
+            durationSeconds: duration,
+          }).catch((err) => {
+            console.error("Failed to clean up previous unclosed session:", err);
+          });
+        }
+      } catch (e) { }
+      localStorage.removeItem("active_session_recovery");
+    }
+  }, []);
+
+  // Sync active session info to localStorage for recovery
+  useEffect(() => {
+    if (activeSessionId && sessionStartTime) {
+      localStorage.setItem("active_session_recovery", JSON.stringify({
+        activeSessionId,
+        sessionStartTime,
+        sessionWordCount,
+        sessionCorrectCount,
+      }));
+    } else {
+      localStorage.removeItem("active_session_recovery");
+    }
+  }, [activeSessionId, sessionStartTime, sessionWordCount, sessionCorrectCount]);
+
+  // Attempt to end the session immediately on tab close/refresh
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (activeSessionId && sessionStartTime) {
+        const duration = Math.round((Date.now() - sessionStartTime) / 1000);
+        endPracticeSession({
+          sessionId: activeSessionId,
+          totalWordsAttempted: sessionWordCount,
+          totalCorrect: sessionCorrectCount,
+          durationSeconds: duration,
+        }, true).catch(() => { });
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [activeSessionId, sessionStartTime, sessionWordCount, sessionCorrectCount]);
+
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme === "default" ? "" : theme);
     localStorage.setItem("spelling-coach-theme", theme);
