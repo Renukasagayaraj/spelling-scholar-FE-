@@ -48,7 +48,7 @@ export function useRewards() {
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(all)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(all)); } catch { }
   }, [all]);
 
   const getStats = useCallback((level: number): LevelStats => all[level] ?? empty(), [all]);
@@ -75,7 +75,7 @@ export function useRewards() {
         osc.start(start);
         osc.stop(start + 0.5);
       });
-    } catch {}
+    } catch { }
   }, []);
 
   const recordCorrect = useCallback((level: number) => {
@@ -113,6 +113,21 @@ export function useRewards() {
   const clearNewBadge = useCallback(() => setNewBadge(null), []);
   const clearMilestone = useCallback(() => setMilestoneHit(null), []);
 
+  const syncWithDatabase = useCallback((dbStatsList: any[]) => {
+    setAll((prev) => {
+      const next = { ...prev };
+      dbStatsList.forEach((row) => {
+        next[row.level] = {
+          streak: row.current_streak || 0,
+          bestStreak: row.best_streak || 0,
+          totalCorrect: row.mastered_words || 0,
+          badges: row.badges || [],
+        };
+      });
+      return next;
+    });
+  }, []);
+
   return {
     getStats,
     recordCorrect,
@@ -121,6 +136,7 @@ export function useRewards() {
     milestoneHit,
     clearNewBadge,
     clearMilestone,
+    syncWithDatabase,
     allBadges: BADGES,
   };
 }
