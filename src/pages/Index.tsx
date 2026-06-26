@@ -151,6 +151,12 @@ export default function Index() {
     } catch (err) {
       console.error("Failed to end practice session:", err);
     } finally {
+      if (activeSessionMode) {
+        const savedMap = localStorage.getItem("active_sessions_map");
+        const map = savedMap ? JSON.parse(savedMap) : {};
+        delete map[activeSessionMode];
+        localStorage.setItem("active_sessions_map", JSON.stringify(map));
+      }
       setActiveSessionId(null);
       setSessionStartTime(null);
       setActiveSessionMode(null);
