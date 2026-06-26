@@ -560,7 +560,6 @@ export interface DbUserStats {
   total_attempts: number;
   mastered_words: number;
   badges: string[];
-  total_sessions: number;
 }
 
 export async function fetchUserStatistics(): Promise<DbUserStats[]> {
