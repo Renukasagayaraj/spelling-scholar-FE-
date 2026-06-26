@@ -25,6 +25,7 @@ import {
   recordWordAttempt,
   endPracticeSession,
   fetchUserStatistics,
+  fetchSessionAttempts,
 } from "@/lib/api";
 import { VoiceMic } from "@/components/VoiceMic";
 import type { VoiceRespondResult } from "@/lib/voiceApi";
@@ -51,6 +52,22 @@ const DEFAULT_PROFILE = {
   age: 10,
   grade: "5",
   spellingLevel: "competition",
+};
+
+const getParamsFromMode = (mode: string): NextWordParams => {
+  if (mode.startsWith("standard_level_")) {
+    const lvl = parseInt(mode.replace("standard_level_", ""), 10);
+    return { level: lvl };
+  }
+  if (mode.startsWith("custom_list_")) {
+    const listId = mode.replace("custom_list_", "");
+    return { customListId: listId };
+  }
+  if (mode.startsWith("foreign_origin_")) {
+    const origin = mode.replace("foreign_origin_", "");
+    return { foreignOrigin: origin };
+  }
+  return {};
 };
 
 export default function Index() {
@@ -110,109 +127,356 @@ export default function Index() {
   const [activeHistoryIndex, setActiveHistoryIndex] = useState<number | null>(null);
 
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [activeSessionMode, setActiveSessionMode] = useState<string | null>(null);
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
   const [sessionWordCount, setSessionWordCount] = useState(0);
   const [sessionCorrectCount, setSessionCorrectCount] = useState(0);
+  const [isRecovering, setIsRecovering] = useState(true);
 
   const endSession = async () => {
     if (!activeSessionId || !sessionStartTime) return;
-    const duration = Math.round((Date.now() - sessionStartTime) / 1000);
+    const savedMap = localStorage.getItem("active_sessions_map");
+    const map = savedMap ? JSON.parse(savedMap) : {};
+    const prevAcc = (activeSessionMode && map[activeSessionMode]?.accumulatedDuration) || 0;
+    const currentDuration = Math.round((Date.now() - sessionStartTime) / 1000);
+    const totalDuration = prevAcc + currentDuration;
+
     try {
       await endPracticeSession({
         sessionId: activeSessionId,
         totalWordsAttempted: sessionWordCount,
         totalCorrect: sessionCorrectCount,
-        durationSeconds: duration,
+        durationSeconds: totalDuration,
       });
     } catch (err) {
       console.error("Failed to end practice session:", err);
     } finally {
       setActiveSessionId(null);
       setSessionStartTime(null);
+      setActiveSessionMode(null);
     }
   };
+
+  const isStartingSession = useRef(false);
 
   const startSession = async (mode: string) => {
-    if (activeSessionId) {
-      // Use clean end function
-      const duration = Math.round((Date.now() - (sessionStartTime || Date.now())) / 1000);
-      try {
-        await endPracticeSession({
-          sessionId: activeSessionId,
-          totalWordsAttempted: sessionWordCount,
-          totalCorrect: sessionCorrectCount,
-          durationSeconds: duration,
-        });
-      } catch (err) {
-        console.error("Failed to end previous practice session:", err);
-      }
+    if (isStartingSession.current) return;
+    if (activeSessionId && activeSessionMode === mode) {
+      return;
     }
+    isStartingSession.current = true;
+
     try {
-      const id = await startPracticeSession(mode);
-      setActiveSessionId(id);
-      setSessionStartTime(Date.now());
-      setSessionWordCount(0);
-      setSessionCorrectCount(0);
-    } catch (err) {
-      console.error("Failed to start practice session:", err);
+      // Save the current active session state to the map before switching
+      if (activeSessionId && activeSessionMode) {
+        const savedMap = localStorage.getItem("active_sessions_map");
+        const map = savedMap ? JSON.parse(savedMap) : {};
+        const currentDuration = Math.round((Date.now() - (sessionStartTime || Date.now())) / 1000);
+        const prevAcc = map[activeSessionMode]?.accumulatedDuration || 0;
+        const totalDuration = prevAcc + currentDuration;
+        map[activeSessionMode] = {
+          activeSessionId,
+          sessionStartTime,
+          sessionWordCount,
+          sessionCorrectCount,
+          history,
+          activeHistoryIndex,
+          accumulatedDuration: totalDuration,
+        };
+        localStorage.setItem("active_sessions_map", JSON.stringify(map));
+
+        // Also update the database for the ended session
+        try {
+          await endPracticeSession({
+            sessionId: activeSessionId,
+            totalWordsAttempted: sessionWordCount,
+            totalCorrect: sessionCorrectCount,
+            durationSeconds: totalDuration,
+          });
+        } catch (err) {
+          console.error("Failed to update previous practice session in DB:", err);
+        }
+      }
+
+      // Check if the target mode has an existing session in the map
+      const savedMap = localStorage.getItem("active_sessions_map");
+      const map = savedMap ? JSON.parse(savedMap) : {};
+      if (map[mode]) {
+        const s = map[mode];
+        setActiveSessionId(s.activeSessionId);
+        setActiveSessionMode(mode);
+        setSessionStartTime(Date.now()); // Reset segment start time
+        setSessionWordCount(s.sessionWordCount);
+        setSessionCorrectCount(s.sessionCorrectCount);
+        setHistory(s.history);
+
+        // Always start with a new word and clean input box when entering/resuming the session
+        setActiveHistoryIndex(null);
+        setAttempt("");
+        setResult(null);
+        loadWord(getParamsFromMode(mode));
+        return;
+      }
+
+      // Otherwise, start a brand new session or resume an existing one from DB
+      try {
+        const id = await startPracticeSession(mode);
+        setActiveSessionId(id);
+        setActiveSessionMode(mode);
+        setSessionStartTime(Date.now());
+
+        // Fetch attempts for this session ID from DB to see if it already has history
+        const attempts = await fetchSessionAttempts(id);
+        if (attempts && attempts.length > 0) {
+          const historyEntries: HistoryEntry[] = attempts.map((att) => {
+            const isCorrect = att.is_correct;
+            const cat = att.word_catalog_entry;
+            return {
+              word: {
+                word: att.target_word,
+                level: cat?.level || att.level || 1,
+                gradeBand: cat?.gradeBand || "1-3",
+                difficulty: cat?.difficulty || "medium",
+                origin: cat?.origin || "",
+                definition: cat?.definition || "",
+                exampleSentence: cat?.exampleSentence || "",
+                partOfSpeech: cat?.partOfSpeech || "",
+                patterns: cat?.patterns || [],
+              } as any,
+              attempt: att.child_attempt,
+              result: {
+                correctness: { isCorrect, reinforceSuccess: true },
+                coachingText: {
+                  shortFeedback: isCorrect ? "Correct!" : `Spelled as: ${att.child_attempt}`,
+                  fullExplanation: isCorrect ? "You spelled this word correctly." : `The correct spelling is "${att.target_word}".`,
+                  memoryTip: "",
+                  sayAloudTip: "",
+                },
+                analysis: { phonemeMistakes: [], feedback: "", suggestions: "" },
+                wordBreakdown: { displayChunks: [], matchedPatterns: [] },
+                missAnalysis: { summary: "", errorTypes: [] },
+                wordTeaching: null,
+                conceptLabels: { patternLabels: [], originLabels: [], morphologyLabels: [] },
+                nextStep: { practiceFocus: "" },
+                audioBase64: "",
+              } as any,
+            };
+          });
+
+          setHistory(historyEntries);
+          setSessionWordCount(historyEntries.length);
+          setSessionCorrectCount(historyEntries.filter((h) => h.result?.correctness?.isCorrect).length);
+          setActiveHistoryIndex(null);
+          setAttempt("");
+          setResult(null);
+          loadWord(getParamsFromMode(mode));
+        } else {
+          setSessionWordCount(0);
+          setSessionCorrectCount(0);
+          setHistory([]);
+          setActiveHistoryIndex(null);
+          resetWordState();
+          loadWord(getParamsFromMode(mode));
+        }
+      } catch (err) {
+        console.error("Failed to start/resume practice session:", err);
+      }
+    } finally {
+      isStartingSession.current = false;
     }
   };
 
-  // Clean up any unclosed session on page reload/startup
+  // Recover active session on page reload/startup
   useEffect(() => {
     const saved = localStorage.getItem("active_session_recovery");
+    console.log("🎉 saved", saved);
     if (saved) {
       try {
-        const { activeSessionId: id, sessionStartTime: start, sessionWordCount: words, sessionCorrectCount: corrects } = JSON.parse(saved);
+        const {
+          activeSessionId: id,
+          activeSessionMode: mode,
+          sessionStartTime: start,
+          sessionWordCount: words,
+          sessionCorrectCount: corrects,
+          activeChannel: channel,
+          level: lvl,
+          customPracticeActive: customActive,
+          selectedCustomList: customList,
+          foreignPracticeActive: foreignActive,
+          selectedForeignOrigin: foreignOrigin,
+        } = JSON.parse(saved);
+
         if (id && start) {
-          const duration = Math.round((Date.now() - start) / 1000);
-          endPracticeSession({
-            sessionId: id,
-            totalWordsAttempted: words || 0,
-            totalCorrect: corrects || 0,
-            durationSeconds: duration,
-          }).catch((err) => {
-            console.error("Failed to clean up previous unclosed session:", err);
-          });
+          setActiveSessionId(id);
+          setActiveSessionMode(mode || null);
+          setSessionStartTime(start);
+          setSessionWordCount(words || 0);
+          setSessionCorrectCount(corrects || 0);
+          setActiveChannel(channel);
+          setLevel(lvl || 1);
+          setCustomPracticeActive(!!customActive);
+          setSelectedCustomList(customList || null);
+          setForeignPracticeActive(!!foreignActive);
+          setSelectedForeignOrigin(foreignOrigin || null);
+
+          // Restore history
+          const savedHistory = localStorage.getItem("active_session_history");
+          const savedIndex = localStorage.getItem("active_session_history_index");
+          if (savedHistory) {
+            const parsedHistory = JSON.parse(savedHistory);
+            setHistory(parsedHistory);
+            if (savedIndex !== null) {
+              const idx = JSON.parse(savedIndex);
+              setActiveHistoryIndex(idx);
+              const entry = parsedHistory[idx];
+              if (entry) {
+                setWord(entry.word);
+                setAttempt(entry.attempt);
+                setResult(entry.result);
+              }
+            }
+            setIsRecovering(false);
+          } else {
+            // Fallback: Fetch attempts from DB if local storage history is missing
+            fetchSessionAttempts(id)
+              .then((attempts) => {
+                if (attempts && attempts.length > 0) {
+                  const historyEntries: HistoryEntry[] = attempts.map((att) => {
+                    const isCorrect = att.is_correct;
+                    const cat = att.word_catalog_entry;
+                    return {
+                      word: {
+                        word: att.target_word,
+                        level: cat?.level || att.level || 1,
+                        gradeBand: cat?.gradeBand || "1-3",
+                        difficulty: cat?.difficulty || "medium",
+                        origin: cat?.origin || "",
+                        definition: cat?.definition || "",
+                        exampleSentence: cat?.exampleSentence || "",
+                        partOfSpeech: cat?.partOfSpeech || "",
+                        patterns: cat?.patterns || [],
+                      } as any,
+                      attempt: att.child_attempt,
+                      result: {
+                        correctness: { isCorrect, reinforceSuccess: true },
+                        coachingText: {
+                          shortFeedback: isCorrect ? "Correct!" : `Spelled as: ${att.child_attempt}`,
+                          fullExplanation: isCorrect ? "You spelled this word correctly." : `The correct spelling is "${att.target_word}".`,
+                          memoryTip: "",
+                          sayAloudTip: "",
+                        },
+                        analysis: { phonemeMistakes: [], feedback: "", suggestions: "" },
+                        wordBreakdown: { displayChunks: [], matchedPatterns: [] },
+                        missAnalysis: { summary: "", errorTypes: [] },
+                        wordTeaching: null,
+                        conceptLabels: { patternLabels: [], originLabels: [], morphologyLabels: [] },
+                        nextStep: { practiceFocus: "" },
+                        audioBase64: "",
+                      } as any,
+                    };
+                  });
+                  setHistory(historyEntries);
+                  setActiveHistoryIndex(historyEntries.length - 1);
+                  const lastEntry = historyEntries[historyEntries.length - 1];
+                  setWord(lastEntry.word);
+                  setAttempt(lastEntry.attempt);
+                  setResult(lastEntry.result);
+                }
+              })
+              .catch((err) => {
+                console.error("Failed to recover session attempts from DB:", err);
+              })
+              .finally(() => {
+                setIsRecovering(false);
+              });
+          }
+        } else {
+          setIsRecovering(false);
         }
-      } catch (e) { }
-      localStorage.removeItem("active_session_recovery");
+      } catch (e) {
+        console.error("Failed to recover active session:", e);
+        setIsRecovering(false);
+      }
+    } else {
+      setIsRecovering(false);
     }
   }, []);
 
-  // Sync active session info to localStorage for recovery
+  // Sync active session info and history to localStorage for recovery
   useEffect(() => {
+    console.log("🎉 isRecovering", isRecovering);
+    if (isRecovering) return;
+    console.log("🎉 activeSessionId", activeSessionId);
+    console.log("🎉 sessionStartTime", sessionStartTime);
+    console.log("🎉 sessionWordCount", sessionWordCount);
+    console.log("🎉 sessionCorrectCount", sessionCorrectCount);
+    console.log("🎉 activeChannel", activeChannel);
+    console.log("🎉 level", level);
+    console.log("🎉 customPracticeActive", customPracticeActive);
+    console.log("🎉 selectedCustomList", selectedCustomList);
+    console.log("🎉 foreignPracticeActive", foreignPracticeActive);
+    console.log("🎉🎉 selectedForeignOrigin", selectedForeignOrigin);
     if (activeSessionId && sessionStartTime) {
       localStorage.setItem("active_session_recovery", JSON.stringify({
         activeSessionId,
+        activeSessionMode,
         sessionStartTime,
         sessionWordCount,
         sessionCorrectCount,
+        activeChannel,
+        level,
+        customPracticeActive,
+        selectedCustomList,
+        foreignPracticeActive,
+        selectedForeignOrigin,
       }));
+      localStorage.setItem("active_session_history", JSON.stringify(history));
+      localStorage.setItem("active_session_history_index", JSON.stringify(activeHistoryIndex));
+
+      if (activeSessionMode) {
+        const savedMap = localStorage.getItem("active_sessions_map");
+        const map = savedMap ? JSON.parse(savedMap) : {};
+        const prevAcc = map[activeSessionMode]?.accumulatedDuration || 0;
+        map[activeSessionMode] = {
+          activeSessionId,
+          sessionStartTime,
+          sessionWordCount,
+          sessionCorrectCount,
+          history,
+          activeHistoryIndex,
+          accumulatedDuration: prevAcc,
+        };
+        localStorage.setItem("active_sessions_map", JSON.stringify(map));
+      }
     } else {
       localStorage.removeItem("active_session_recovery");
+      localStorage.removeItem("active_session_history");
+      localStorage.removeItem("active_session_history_index");
     }
-  }, [activeSessionId, sessionStartTime, sessionWordCount, sessionCorrectCount]);
+  }, [
+    isRecovering,
+    activeSessionId,
+    activeSessionMode,
+    sessionStartTime,
+    sessionWordCount,
+    sessionCorrectCount,
+    activeChannel,
+    level,
+    customPracticeActive,
+    selectedCustomList,
+    foreignPracticeActive,
+    selectedForeignOrigin,
+    history,
+    activeHistoryIndex,
+  ]);
 
-  // Attempt to end the session immediately on tab close/refresh
+  // Reset active session local storage on login/logout to prevent stale state inheritance
   useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (activeSessionId && sessionStartTime) {
-        const duration = Math.round((Date.now() - sessionStartTime) / 1000);
-        endPracticeSession({
-          sessionId: activeSessionId,
-          totalWordsAttempted: sessionWordCount,
-          totalCorrect: sessionCorrectCount,
-          durationSeconds: duration,
-        }, true).catch(() => { });
-      }
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
-  }, [activeSessionId, sessionStartTime, sessionWordCount, sessionCorrectCount]);
+    localStorage.removeItem("active_sessions_map");
+    localStorage.removeItem("active_session_recovery");
+    localStorage.removeItem("active_session_history");
+    localStorage.removeItem("active_session_history_index");
+  }, [user?.id]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme === "default" ? "" : theme);
@@ -319,7 +583,6 @@ export default function Index() {
 
   const handleLevelChange = (lvl: number) => {
     setLevel(lvl);
-    loadWord({ level: lvl });
     startSession(`standard_level_${lvl}`);
   };
 
@@ -344,7 +607,14 @@ export default function Index() {
       case "standard":
         setPracticeMode("standard");
         setActiveChannel("standard");
-        setLevel(0);
+        if (activeSessionMode && activeSessionMode.startsWith("standard_level_")) {
+          const lvl = parseInt(activeSessionMode.replace("standard_level_", ""), 10);
+          if (!isNaN(lvl)) {
+            setLevel(lvl);
+          }
+        } else {
+          setLevel(0);
+        }
         break;
       case "customManage":
         setPracticeMode("custom");
@@ -355,7 +625,6 @@ export default function Index() {
         setActiveChannel("custom");
         setSelectedCustomList(selection.list);
         setCustomPracticeActive(true);
-        loadWord({ customListId: selection.list.id });
         startSession(`custom_list_${selection.list.id}`);
         break;
       case "foreignManage":
@@ -367,26 +636,24 @@ export default function Index() {
         setActiveChannel("foreignOrigin");
         setSelectedForeignOrigin(selection.origin);
         setForeignPracticeActive(true);
-        loadWord({ foreignOrigin: selection.origin.origin });
         startSession(`foreign_origin_${selection.origin.origin}`);
         break;
     }
   };
 
-  const handleBackToDashboard = () => {
+  const handleBackToDashboard = async () => {
+    await endSession();
     setActiveChannel(null);
     setCustomPracticeActive(false);
     setForeignPracticeActive(false);
     // Keep session history across dashboard visits; clears on reload.
     setActiveHistoryIndex(null);
     resetWordState();
-    endSession();
   };
 
   const handleStartCustomPractice = () => {
     if (!selectedCustomList) return;
     setCustomPracticeActive(true);
-    loadWord({ customListId: selectedCustomList.id });
     startSession(`custom_list_${selectedCustomList.id}`);
   };
 
@@ -400,7 +667,6 @@ export default function Index() {
       return;
     }
     setForeignPracticeActive(true);
-    loadWord({ foreignOrigin: selectedForeignOrigin.origin });
     startSession(`foreign_origin_${selectedForeignOrigin.origin}`);
   };
 

@@ -576,4 +576,36 @@ export async function fetchUserStatistics(): Promise<DbUserStats[]> {
   return data.stats;
 }
 
+export interface DbWordAttempt {
+  id: string;
+  session_id: string;
+  user_id: string;
+  target_word: string;
+  child_attempt: string;
+  is_correct: boolean;
+  level?: number;
+  definition_viewed?: boolean;
+  example_viewed?: boolean;
+  origin_viewed?: boolean;
+  part_of_speech_viewed?: boolean;
+  repeat_word_count?: number;
+  used_voice_input?: boolean;
+  created_at: string;
+  word_catalog_entry?: any;
+}
+
+export async function fetchSessionAttempts(sessionId: string): Promise<DbWordAttempt[]> {
+  if (USE_MOCK_FALLBACK) {
+    return [];
+  }
+  const res = await fetch(`${BASE_URL}/api/sessions/attempts?sessionId=${encodeURIComponent(sessionId)}`, {
+    headers: await authHeaders(),
+  });
+  if (res.status === 401) await handle401();
+  if (!res.ok) throw new Error("Failed to fetch session attempts");
+  const data = await res.json();
+  return data.attempts;
+}
+
+
 

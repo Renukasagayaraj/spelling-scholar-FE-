@@ -6,6 +6,7 @@ import {
   fetchSubscriptionStatus,
   fetchUserProfile,
   updateUserProfile,
+  endPracticeSession,
   type UserProfile
 } from "@/lib/api";
 
@@ -181,7 +182,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     signOut: async () => {
       if (!supabaseConfigured) return;
+
+      // Try to end active session if present in localStorage before signing out
+      try {
+        const savedRecovery = localStorage.getItem("active_session_recovery");
+        if (savedRecovery) {
+          const recovery = JSON.parse(savedRecovery);
+          const { activeSessionId, activeSessionMode, sessionStartTime, sessionWordCount, sessionCorrectCount } = recovery;
+          
+          if (activeSessionId && sessionStartTime) {
+            const savedMap = localStorage.getItem("active_sessions_map");
+            const map = savedMap ? JSON.parse(savedMap) : {};
+            const prevAcc = (activeSessionMode && map[activeSessionMode]?.accumulatedDuration) || 0;
+            const currentDuration = Math.round((Date.now() - sessionStartTime) / 1000);
+            const totalDuration = prevAcc + currentDuration;
+
+            await endPracticeSession({
+              sessionId: activeSessionId,
+              totalWordsAttempted: sessionWordCount || 0,
+              totalCorrect: sessionCorrectCount || 0,
+              durationSeconds: totalDuration || 0,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to end active session during sign out:", err);
+      }
+
       await supabase.auth.signOut();
+      localStorage.removeItem("active_session_recovery");
+      localStorage.removeItem("active_session_history");
+      localStorage.removeItem("active_session_history_index");
+      localStorage.removeItem("active_sessions_map");
     },
   };
 
