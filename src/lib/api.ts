@@ -67,6 +67,11 @@ export interface CoachingRequest {
   childProfile: ChildProfile;
   supportsUsed: SupportsUsed;
   sessionContext: SessionContext;
+  definition?: string;
+  exampleSentence?: string;
+  origin?: string;
+  partOfSpeech?: string;
+  level?: number;
 }
 
 export interface CoachingResponse {
