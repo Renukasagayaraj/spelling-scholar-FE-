@@ -722,6 +722,7 @@ export default function Index() {
           partOfSpeechViewed: supportsViewed.current.partOfSpeechViewed,
           repeatWordCount: repeatWordCount.current,
           usedVoiceInput: usedVoiceInput.current,
+          coachingResponse: res.coachingText?.shortFeedback || "",
         }).catch((err) => {
           console.error("Failed to save attempt in DB:", err);
         });

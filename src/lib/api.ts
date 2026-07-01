@@ -521,6 +521,7 @@ export interface RecordAttemptBody {
   partOfSpeechViewed?: boolean;
   repeatWordCount?: number;
   usedVoiceInput?: boolean;
+  coachingResponse?: string;
 }
 
 export async function recordWordAttempt(body: RecordAttemptBody): Promise<string> {
