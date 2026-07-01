@@ -27,7 +27,7 @@ export const BADGES: BadgeDef[] = [
 
 const MILESTONES = [3, 5, 10, 15, 20];
 
-type AllStats = Record<number, LevelStats>;
+type AllStats = Record<string, LevelStats>;
 
 const empty = (): LevelStats => ({ streak: 0, bestStreak: 0, totalCorrect: 0, badges: [] });
 
@@ -51,7 +51,10 @@ export function useRewards() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(all)); } catch { }
   }, [all]);
 
-  const getStats = useCallback((level: number): LevelStats => all[level] ?? empty(), [all]);
+  const getStats = useCallback((mode: string, level?: number): LevelStats => {
+    const key = mode === "standard" ? `standard:${level ?? 1}` : mode;
+    return all[key] ?? empty();
+  }, [all]);
 
   const playFanfare = useCallback(() => {
     try {
@@ -78,9 +81,10 @@ export function useRewards() {
     } catch { }
   }, []);
 
-  const recordCorrect = useCallback((level: number) => {
+  const recordCorrect = useCallback((mode: string, level?: number) => {
+    const key = mode === "standard" ? `standard:${level ?? 1}` : mode;
     setAll((prev) => {
-      const cur = prev[level] ?? empty();
+      const cur = prev[key] ?? empty();
       const streak = cur.streak + 1;
       const totalCorrect = cur.totalCorrect + 1;
       const bestStreak = Math.max(cur.bestStreak, streak);
@@ -99,14 +103,15 @@ export function useRewards() {
         playFanfare();
       }
 
-      return { ...prev, [level]: next };
+      return { ...prev, [key]: next };
     });
   }, [playFanfare]);
 
-  const recordIncorrect = useCallback((level: number) => {
+  const recordIncorrect = useCallback((mode: string, level?: number) => {
+    const key = mode === "standard" ? `standard:${level ?? 1}` : mode;
     setAll((prev) => {
-      const cur = prev[level] ?? empty();
-      return { ...prev, [level]: { ...cur, streak: 0 } };
+      const cur = prev[key] ?? empty();
+      return { ...prev, [key]: { ...cur, streak: 0 } };
     });
   }, []);
 
@@ -117,7 +122,8 @@ export function useRewards() {
     setAll((prev) => {
       const next = { ...prev };
       dbStatsList.forEach((row) => {
-        next[row.level] = {
+        const key = row.mode === "standard" ? `standard:${row.level || 1}` : row.mode;
+        next[key] = {
           streak: row.current_streak || 0,
           bestStreak: row.best_streak || 0,
           totalCorrect: row.mastered_words || 0,

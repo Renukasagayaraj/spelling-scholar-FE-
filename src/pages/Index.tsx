@@ -715,6 +715,7 @@ export default function Index() {
           childAttempt: attempt.trim().toLowerCase(),
           isCorrect,
           level: lvl,
+          mode: practiceMode,
           definitionViewed: supportsViewed.current.definitionViewed,
           exampleViewed: supportsViewed.current.exampleViewed,
           originViewed: supportsViewed.current.originViewed,
@@ -728,7 +729,7 @@ export default function Index() {
 
       if (isCorrect) {
         if (lvl !== 3) playCheer();
-        rewards.recordCorrect(lvl);
+        rewards.recordCorrect(practiceMode, lvl);
         // Confetti only for Level 1 (younger kids). L2/L3 get streaks + fanfare instead.
         if (lvl === 1) {
           const fire = (origin: { x: number; y: number }) =>
@@ -746,7 +747,7 @@ export default function Index() {
           setTimeout(() => fire({ x: 0.5, y: 0.5 }), 200);
         }
       } else {
-        rewards.recordIncorrect(lvl);
+        rewards.recordIncorrect(practiceMode, lvl);
       }
       setSession((s) => ({
         ...s,
@@ -1009,7 +1010,7 @@ export default function Index() {
           >
             {/* Rewards strip — all levels */}
             <RewardsStrip
-              stats={rewards.getStats(effectiveLevel())}
+              stats={rewards.getStats(practiceMode, effectiveLevel())}
               newBadge={rewards.newBadge}
               onClearNewBadge={rewards.clearNewBadge}
             />
