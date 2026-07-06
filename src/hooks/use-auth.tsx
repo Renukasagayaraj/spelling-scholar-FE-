@@ -70,17 +70,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Strip OAuth tokens from the URL hash so they aren't visible/shareable.
-    // Supabase's detectSessionInUrl parses them, but we clean the address bar.
     const scrubAuthHash = () => {
       if (typeof window === "undefined") return;
+      const hash = window.location.hash;
       const href = window.location.href;
-      if (href.includes("#access_token=") || href.includes("#refresh_token=") || href.endsWith("#")) {
-        let cleanUrl = window.location.pathname;
-        if (window.location.search && window.location.search !== "?") {
-          cleanUrl += window.location.search;
-        }
-        cleanUrl = cleanUrl.replace(/[?#]$/, "");
+      if (/[#&](access_token|refresh_token|provider_token|error_description)=/.test(hash) || href.endsWith("#")) {
+        const cleanUrl = window.location.pathname + window.location.search;
         window.history.replaceState(null, "", cleanUrl);
       }
     };
