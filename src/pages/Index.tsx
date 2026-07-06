@@ -7,7 +7,7 @@ import { LevelSelector } from "@/components/LevelSelector";
 import { SupportCard } from "@/components/SupportCard";
 import { CoachingResult } from "@/components/CoachingResult";
 import { DebugPanel } from "@/components/DebugPanel";
-import { type ThemeKey } from "@/components/ThemePicker";
+import { ThemePicker, type ThemeKey } from "@/components/ThemePicker";
 import { type PracticeMode } from "@/components/PracticeModeSwitch";
 import { CustomListPanel } from "@/components/CustomListPanel";
 import { ForeignOriginPanel } from "@/components/ForeignOriginPanel";
@@ -17,16 +17,7 @@ import { LevelUpFlash } from "@/components/LevelUpFlash";
 import { DinoDecor } from "@/components/DinoDecor";
 import { useRewards } from "@/hooks/use-rewards";
 import { ArrowLeft, GraduationCap, List as ListIcon, Globe } from "lucide-react";
-import {
-  fetchNextWord,
-  submitSpellingAttempt,
-  fetchPronunciationAudio,
-  startPracticeSession,
-  recordWordAttempt,
-  endPracticeSession,
-  fetchUserStatistics,
-  fetchSessionAttempts,
-} from "@/lib/api";
+import { fetchNextWord, submitSpellingAttempt, fetchPronunciationAudio } from "@/lib/api";
 import { VoiceMic } from "@/components/VoiceMic";
 import type { VoiceRespondResult } from "@/lib/voiceApi";
 import type {
@@ -40,9 +31,11 @@ import type {
   NextWordParams,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { AuthMenu } from "@/components/AuthMenu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type HistoryEntry } from "@/components/SessionHistoryPanel";
 import { SessionHistorySidebar } from "@/components/SessionHistorySidebar";
-import { Header } from "@/components/Header";
+import beePng from "@/assets/bee.png";
 import { useAuth } from "@/hooks/use-auth";
 import { PaymentDialog } from "@/components/PaymentDialog";
 import { AuthDialog } from "@/components/AuthDialog";
@@ -54,29 +47,13 @@ const DEFAULT_PROFILE = {
   spellingLevel: "competition",
 };
 
-const getParamsFromMode = (mode: string): NextWordParams => {
-  if (mode.startsWith("standard_level_")) {
-    const lvl = parseInt(mode.replace("standard_level_", ""), 10);
-    return { level: lvl };
-  }
-  if (mode.startsWith("custom_list_")) {
-    const listId = mode.replace("custom_list_", "");
-    return { customListId: listId };
-  }
-  if (mode.startsWith("foreign_origin_")) {
-    const origin = mode.replace("foreign_origin_", "");
-    return { foreignOrigin: origin };
-  }
-  return {};
-};
-
 export default function Index() {
   const [theme, setTheme] = useState<ThemeKey>(() => {
     return (localStorage.getItem("spelling-coach-theme") as ThemeKey) || "default";
   });
   const { soundEnabled, toggleSound, playCheer } = useCheer();
   const rewards = useRewards();
-  const { user, subscribed, profile, updateProfile } = useAuth();
+  const { user, subscribed } = useAuth();
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [level, setLevel] = useState(0);
@@ -95,14 +72,7 @@ export default function Index() {
   const [origOpen, setOrigOpen] = useState(false);
   const [posOpen, setPosOpen] = useState(false);
 
-  const supportsViewed = useRef<SupportsUsed>({
-    definitionViewed: false,
-    exampleViewed: false,
-    originViewed: false,
-    partOfSpeechViewed: false,
-  });
-  const repeatWordCount = useRef(0);
-  const usedVoiceInput = useRef(false);
+  const supportsViewed = useRef<SupportsUsed>({ definitionViewed: false, exampleViewed: false, originViewed: false });
 
   const [session, setSession] = useState<SessionContext>({
     mode: "practice",
@@ -126,386 +96,10 @@ export default function Index() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [activeHistoryIndex, setActiveHistoryIndex] = useState<number | null>(null);
 
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [activeSessionMode, setActiveSessionMode] = useState<string | null>(null);
-  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
-  const [sessionWordCount, setSessionWordCount] = useState(0);
-  const [sessionCorrectCount, setSessionCorrectCount] = useState(0);
-  const [isRecovering, setIsRecovering] = useState(true);
-
-  const endSession = async () => {
-    if (!activeSessionId || !sessionStartTime) return;
-    const savedMap = localStorage.getItem("active_sessions_map");
-    const map = savedMap ? JSON.parse(savedMap) : {};
-    const prevAcc = (activeSessionMode && map[activeSessionMode]?.accumulatedDuration) || 0;
-    const currentDuration = Math.round((Date.now() - sessionStartTime) / 1000);
-    const totalDuration = prevAcc + currentDuration;
-
-    try {
-      await endPracticeSession({
-        sessionId: activeSessionId,
-        totalWordsAttempted: sessionWordCount,
-        totalCorrect: sessionCorrectCount,
-        durationSeconds: totalDuration,
-      });
-    } catch (err) {
-      console.error("Failed to end practice session:", err);
-    } finally {
-      if (activeSessionMode) {
-        const savedMap = localStorage.getItem("active_sessions_map");
-        const map = savedMap ? JSON.parse(savedMap) : {};
-        delete map[activeSessionMode];
-        localStorage.setItem("active_sessions_map", JSON.stringify(map));
-      }
-      setActiveSessionId(null);
-      setSessionStartTime(null);
-      setActiveSessionMode(null);
-    }
-  };
-
-  const isStartingSession = useRef(false);
-
-  const startSession = async (mode: string) => {
-    if (isStartingSession.current) return;
-    if (activeSessionId && activeSessionMode === mode) {
-      return;
-    }
-    isStartingSession.current = true;
-
-    try {
-      // Save the current active session state to the map before switching
-      if (activeSessionId && activeSessionMode) {
-        const savedMap = localStorage.getItem("active_sessions_map");
-        const map = savedMap ? JSON.parse(savedMap) : {};
-        const currentDuration = Math.round((Date.now() - (sessionStartTime || Date.now())) / 1000);
-        const prevAcc = map[activeSessionMode]?.accumulatedDuration || 0;
-        const totalDuration = prevAcc + currentDuration;
-        map[activeSessionMode] = {
-          activeSessionId,
-          sessionStartTime,
-          sessionWordCount,
-          sessionCorrectCount,
-          history,
-          activeHistoryIndex,
-          accumulatedDuration: totalDuration,
-        };
-        localStorage.setItem("active_sessions_map", JSON.stringify(map));
-
-        // Also update the database for the ended session
-        try {
-          await endPracticeSession({
-            sessionId: activeSessionId,
-            totalWordsAttempted: sessionWordCount,
-            totalCorrect: sessionCorrectCount,
-            durationSeconds: totalDuration,
-          });
-        } catch (err) {
-          console.error("Failed to update previous practice session in DB:", err);
-        }
-      }
-
-      // Check if the target mode has an existing session in the map
-      const savedMap = localStorage.getItem("active_sessions_map");
-      const map = savedMap ? JSON.parse(savedMap) : {};
-      if (map[mode]) {
-        const s = map[mode];
-        setActiveSessionId(s.activeSessionId);
-        setActiveSessionMode(mode);
-        setSessionStartTime(Date.now()); // Reset segment start time
-        setSessionWordCount(s.sessionWordCount);
-        setSessionCorrectCount(s.sessionCorrectCount);
-        setHistory(s.history);
-
-        // Always start with a new word and clean input box when entering/resuming the session
-        setActiveHistoryIndex(null);
-        setAttempt("");
-        setResult(null);
-        loadWord(getParamsFromMode(mode));
-        return;
-      }
-
-      // Otherwise, start a brand new session or resume an existing one from DB
-      try {
-        const id = await startPracticeSession(mode);
-        setActiveSessionId(id);
-        setActiveSessionMode(mode);
-        setSessionStartTime(Date.now());
-
-        // Fetch attempts for this session ID from DB to see if it already has history
-        const attempts = await fetchSessionAttempts(id);
-        if (attempts && attempts.length > 0) {
-          const historyEntries: HistoryEntry[] = attempts.map((att) => {
-            const isCorrect = att.is_correct;
-            const cat = att.word_catalog_entry;
-            return {
-              word: {
-                word: att.target_word,
-                level: cat?.level || att.level || 1,
-                gradeBand: cat?.gradeBand || "1-3",
-                difficulty: cat?.difficulty || "medium",
-                origin: cat?.origin || "",
-                definition: cat?.definition || "",
-                exampleSentence: cat?.exampleSentence || "",
-                partOfSpeech: cat?.partOfSpeech || "",
-                patterns: cat?.patterns || [],
-              } as any,
-              attempt: att.child_attempt,
-              result: {
-                correctness: { isCorrect, reinforceSuccess: true },
-                coachingText: {
-                  shortFeedback: isCorrect ? "Correct!" : `Spelled as: ${att.child_attempt}`,
-                  fullExplanation: isCorrect ? "You spelled this word correctly." : `The correct spelling is "${att.target_word}".`,
-                  memoryTip: "",
-                  sayAloudTip: "",
-                },
-                analysis: { phonemeMistakes: [], feedback: "", suggestions: "" },
-                wordBreakdown: { displayChunks: [], matchedPatterns: [] },
-                missAnalysis: { summary: "", errorTypes: [] },
-                wordTeaching: null,
-                conceptLabels: { patternLabels: [], originLabels: [], morphologyLabels: [] },
-                nextStep: { practiceFocus: "" },
-                audioBase64: "",
-              } as any,
-            };
-          });
-
-          setHistory(historyEntries);
-          setSessionWordCount(historyEntries.length);
-          setSessionCorrectCount(historyEntries.filter((h) => h.result?.correctness?.isCorrect).length);
-          setActiveHistoryIndex(null);
-          setAttempt("");
-          setResult(null);
-          loadWord(getParamsFromMode(mode));
-        } else {
-          setSessionWordCount(0);
-          setSessionCorrectCount(0);
-          setHistory([]);
-          setActiveHistoryIndex(null);
-          resetWordState();
-          loadWord(getParamsFromMode(mode));
-        }
-      } catch (err) {
-        console.error("Failed to start/resume practice session:", err);
-      }
-    } finally {
-      isStartingSession.current = false;
-    }
-  };
-
-  // Recover active session on page reload/startup
-  useEffect(() => {
-    const saved = localStorage.getItem("active_session_recovery");
-    console.log("🎉 saved", saved);
-    if (saved) {
-      try {
-        const {
-          activeSessionId: id,
-          activeSessionMode: mode,
-          sessionStartTime: start,
-          sessionWordCount: words,
-          sessionCorrectCount: corrects,
-          activeChannel: channel,
-          level: lvl,
-          customPracticeActive: customActive,
-          selectedCustomList: customList,
-          foreignPracticeActive: foreignActive,
-          selectedForeignOrigin: foreignOrigin,
-        } = JSON.parse(saved);
-
-        if (id && start) {
-          setActiveSessionId(id);
-          setActiveSessionMode(mode || null);
-          setSessionStartTime(start);
-          setSessionWordCount(words || 0);
-          setSessionCorrectCount(corrects || 0);
-          setActiveChannel(channel);
-          setLevel(lvl || 1);
-          setCustomPracticeActive(!!customActive);
-          setSelectedCustomList(customList || null);
-          setForeignPracticeActive(!!foreignActive);
-          setSelectedForeignOrigin(foreignOrigin || null);
-
-          // Restore history
-          const savedHistory = localStorage.getItem("active_session_history");
-          const savedIndex = localStorage.getItem("active_session_history_index");
-          if (savedHistory) {
-            const parsedHistory = JSON.parse(savedHistory);
-            setHistory(parsedHistory);
-            if (savedIndex !== null) {
-              const idx = JSON.parse(savedIndex);
-              setActiveHistoryIndex(idx);
-              const entry = parsedHistory[idx];
-              if (entry) {
-                setWord(entry.word);
-                setAttempt(entry.attempt);
-                setResult(entry.result);
-              }
-            }
-            setIsRecovering(false);
-          } else {
-            // Fallback: Fetch attempts from DB if local storage history is missing
-            fetchSessionAttempts(id)
-              .then((attempts) => {
-                if (attempts && attempts.length > 0) {
-                  const historyEntries: HistoryEntry[] = attempts.map((att) => {
-                    const isCorrect = att.is_correct;
-                    const cat = att.word_catalog_entry;
-                    return {
-                      word: {
-                        word: att.target_word,
-                        level: cat?.level || att.level || 1,
-                        gradeBand: cat?.gradeBand || "1-3",
-                        difficulty: cat?.difficulty || "medium",
-                        origin: cat?.origin || "",
-                        definition: cat?.definition || "",
-                        exampleSentence: cat?.exampleSentence || "",
-                        partOfSpeech: cat?.partOfSpeech || "",
-                        patterns: cat?.patterns || [],
-                      } as any,
-                      attempt: att.child_attempt,
-                      result: {
-                        correctness: { isCorrect, reinforceSuccess: true },
-                        coachingText: {
-                          shortFeedback: isCorrect ? "Correct!" : `Spelled as: ${att.child_attempt}`,
-                          fullExplanation: isCorrect ? "You spelled this word correctly." : `The correct spelling is "${att.target_word}".`,
-                          memoryTip: "",
-                          sayAloudTip: "",
-                        },
-                        analysis: { phonemeMistakes: [], feedback: "", suggestions: "" },
-                        wordBreakdown: { displayChunks: [], matchedPatterns: [] },
-                        missAnalysis: { summary: "", errorTypes: [] },
-                        wordTeaching: null,
-                        conceptLabels: { patternLabels: [], originLabels: [], morphologyLabels: [] },
-                        nextStep: { practiceFocus: "" },
-                        audioBase64: "",
-                      } as any,
-                    };
-                  });
-                  setHistory(historyEntries);
-                  setActiveHistoryIndex(historyEntries.length - 1);
-                  const lastEntry = historyEntries[historyEntries.length - 1];
-                  setWord(lastEntry.word);
-                  setAttempt(lastEntry.attempt);
-                  setResult(lastEntry.result);
-                }
-              })
-              .catch((err) => {
-                console.error("Failed to recover session attempts from DB:", err);
-              })
-              .finally(() => {
-                setIsRecovering(false);
-              });
-          }
-        } else {
-          setIsRecovering(false);
-        }
-      } catch (e) {
-        console.error("Failed to recover active session:", e);
-        setIsRecovering(false);
-      }
-    } else {
-      setIsRecovering(false);
-    }
-  }, []);
-
-  // Sync active session info and history to localStorage for recovery
-  useEffect(() => {
-    if (isRecovering) return;
-    if (activeSessionId && sessionStartTime) {
-      localStorage.setItem("active_session_recovery", JSON.stringify({
-        activeSessionId,
-        activeSessionMode,
-        sessionStartTime,
-        sessionWordCount,
-        sessionCorrectCount,
-        activeChannel,
-        level,
-        customPracticeActive,
-        selectedCustomList,
-        foreignPracticeActive,
-        selectedForeignOrigin,
-      }));
-      localStorage.setItem("active_session_history", JSON.stringify(history));
-      localStorage.setItem("active_session_history_index", JSON.stringify(activeHistoryIndex));
-
-      if (activeSessionMode) {
-        const savedMap = localStorage.getItem("active_sessions_map");
-        const map = savedMap ? JSON.parse(savedMap) : {};
-        const prevAcc = map[activeSessionMode]?.accumulatedDuration || 0;
-        map[activeSessionMode] = {
-          activeSessionId,
-          sessionStartTime,
-          sessionWordCount,
-          sessionCorrectCount,
-          history,
-          activeHistoryIndex,
-          accumulatedDuration: prevAcc,
-        };
-        localStorage.setItem("active_sessions_map", JSON.stringify(map));
-      }
-    } else {
-      localStorage.removeItem("active_session_recovery");
-      localStorage.removeItem("active_session_history");
-      localStorage.removeItem("active_session_history_index");
-    }
-  }, [
-    isRecovering,
-    activeSessionId,
-    activeSessionMode,
-    sessionStartTime,
-    sessionWordCount,
-    sessionCorrectCount,
-    activeChannel,
-    level,
-    customPracticeActive,
-    selectedCustomList,
-    foreignPracticeActive,
-    selectedForeignOrigin,
-    history,
-    activeHistoryIndex,
-  ]);
-
-  // Reset active session local storage on login/logout to prevent stale state inheritance
-  useEffect(() => {
-    localStorage.removeItem("active_sessions_map");
-    localStorage.removeItem("active_session_recovery");
-    localStorage.removeItem("active_session_history");
-    localStorage.removeItem("active_session_history_index");
-  }, [user?.id]);
-
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme === "default" ? "" : theme);
     localStorage.setItem("spelling-coach-theme", theme);
   }, [theme]);
-
-  // Sync theme setting from database profile when loaded
-  useEffect(() => {
-    if (profile?.theme_preference) {
-      setTheme(profile.theme_preference as ThemeKey);
-    }
-  }, [profile?.theme_preference]);
-
-  // Fetch user statistics from backend when user logs in
-  useEffect(() => {
-    if (user) {
-      fetchUserStatistics()
-        .then((stats) => {
-          if (stats) {
-            rewards.syncWithDatabase(stats);
-          }
-        })
-        .catch((err) => {
-          console.error("Failed to sync rewards statistics with backend:", err);
-        });
-    }
-  }, [user, rewards.syncWithDatabase]);
-
-  const handleThemeChange = async (newTheme: ThemeKey) => {
-    setTheme(newTheme);
-    if (user && updateProfile) {
-      await updateProfile({ theme_preference: newTheme });
-    }
-  };
 
   // Reset to default if current theme isn't allowed for the active level
   useEffect(() => {
@@ -531,14 +125,7 @@ export default function Index() {
       URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = null;
     }
-    supportsViewed.current = {
-      definitionViewed: false,
-      exampleViewed: false,
-      originViewed: false,
-      partOfSpeechViewed: false,
-    };
-    repeatWordCount.current = 0;
-    usedVoiceInput.current = false;
+    supportsViewed.current = { definitionViewed: false, exampleViewed: false, originViewed: false };
     setSession((s) => ({ ...s, previousAttemptsOnThisWord: 0 }));
   };
 
@@ -556,14 +143,7 @@ export default function Index() {
       URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = null;
     }
-    supportsViewed.current = {
-      definitionViewed: false,
-      exampleViewed: false,
-      originViewed: false,
-      partOfSpeechViewed: false,
-    };
-    repeatWordCount.current = 0;
-    usedVoiceInput.current = false;
+    supportsViewed.current = { definitionViewed: false, exampleViewed: false, originViewed: false };
     setSession((s) => ({ ...s, previousAttemptsOnThisWord: 0 }));
     try {
       const w = await fetchNextWord(params);
@@ -578,7 +158,7 @@ export default function Index() {
 
   const handleLevelChange = (lvl: number) => {
     setLevel(lvl);
-    startSession(`standard_level_${lvl}`);
+    loadWord({ level: lvl });
   };
 
   const handleSelectChannel = (selection: ChannelSelection) => {
@@ -602,14 +182,7 @@ export default function Index() {
       case "standard":
         setPracticeMode("standard");
         setActiveChannel("standard");
-        if (activeSessionMode && activeSessionMode.startsWith("standard_level_")) {
-          const lvl = parseInt(activeSessionMode.replace("standard_level_", ""), 10);
-          if (!isNaN(lvl)) {
-            setLevel(lvl);
-          }
-        } else {
-          setLevel(0);
-        }
+        setLevel(0);
         break;
       case "customManage":
         setPracticeMode("custom");
@@ -620,7 +193,7 @@ export default function Index() {
         setActiveChannel("custom");
         setSelectedCustomList(selection.list);
         setCustomPracticeActive(true);
-        startSession(`custom_list_${selection.list.id}`);
+        loadWord({ customListId: selection.list.id });
         break;
       case "foreignManage":
         setPracticeMode("foreignOrigin");
@@ -631,13 +204,12 @@ export default function Index() {
         setActiveChannel("foreignOrigin");
         setSelectedForeignOrigin(selection.origin);
         setForeignPracticeActive(true);
-        startSession(`foreign_origin_${selection.origin.origin}`);
+        loadWord({ foreignOrigin: selection.origin.origin });
         break;
     }
   };
 
-  const handleBackToDashboard = async () => {
-    await endSession();
+  const handleBackToDashboard = () => {
     setActiveChannel(null);
     setCustomPracticeActive(false);
     setForeignPracticeActive(false);
@@ -649,7 +221,7 @@ export default function Index() {
   const handleStartCustomPractice = () => {
     if (!selectedCustomList) return;
     setCustomPracticeActive(true);
-    startSession(`custom_list_${selectedCustomList.id}`);
+    loadWord({ customListId: selectedCustomList.id });
   };
 
   const handleStartForeignPractice = () => {
@@ -662,7 +234,7 @@ export default function Index() {
       return;
     }
     setForeignPracticeActive(true);
-    startSession(`foreign_origin_${selectedForeignOrigin.origin}`);
+    loadWord({ foreignOrigin: selectedForeignOrigin.origin });
   };
 
   const effectiveLevel = (): number => {
@@ -675,25 +247,12 @@ export default function Index() {
     setSubmitting(true);
     setError(null);
     try {
-      const childProfile = profile ? {
-        childId: profile.child_id || "c1",
-        age: profile.age || 10,
-        grade: profile.grade || "5",
-        spellingLevel: profile.spelling_level || "competition",
-      } : DEFAULT_PROFILE;
-
-      const lvl = effectiveLevel();
       const res = await submitSpellingAttempt({
         targetWord: word.word,
         childAttempt: attempt.trim().toLowerCase(),
-        childProfile,
+        childProfile: DEFAULT_PROFILE,
         supportsUsed: { ...supportsViewed.current },
         sessionContext: session,
-        definition: word.definition,
-        exampleSentence: word.exampleSentence,
-        origin: word.origin,
-        partOfSpeech: word.partOfSpeech,
-        level: lvl,
       });
       setResult(res);
       setHistory((h) => {
@@ -701,36 +260,10 @@ export default function Index() {
         setActiveHistoryIndex(next.length - 1);
         return next;
       });
-      const isCorrect = !!res.correctness?.isCorrect;
-
-      if (activeSessionId) {
-        setSessionWordCount((c) => c + 1);
-        if (isCorrect) {
-          setSessionCorrectCount((c) => c + 1);
-        }
-
-        recordWordAttempt({
-          sessionId: activeSessionId,
-          targetWord: word.word,
-          childAttempt: attempt.trim().toLowerCase(),
-          isCorrect,
-          level: lvl,
-          mode: practiceMode,
-          definitionViewed: supportsViewed.current.definitionViewed,
-          exampleViewed: supportsViewed.current.exampleViewed,
-          originViewed: supportsViewed.current.originViewed,
-          partOfSpeechViewed: supportsViewed.current.partOfSpeechViewed,
-          repeatWordCount: repeatWordCount.current,
-          usedVoiceInput: usedVoiceInput.current,
-          coachingResponse: res.coachingText?.shortFeedback || "",
-        }).catch((err) => {
-          console.error("Failed to save attempt in DB:", err);
-        });
-      }
-
-      if (isCorrect) {
+      const lvl = effectiveLevel();
+      if (res.correctness?.isCorrect) {
         if (lvl !== 3) playCheer();
-        rewards.recordCorrect(practiceMode, lvl);
+        rewards.recordCorrect(lvl);
         // Confetti only for Level 1 (younger kids). L2/L3 get streaks + fanfare instead.
         if (lvl === 1) {
           const fire = (origin: { x: number; y: number }) =>
@@ -748,7 +281,7 @@ export default function Index() {
           setTimeout(() => fire({ x: 0.5, y: 0.5 }), 200);
         }
       } else {
-        rewards.recordIncorrect(practiceMode, lvl);
+        rewards.recordIncorrect(lvl);
       }
       setSession((s) => ({
         ...s,
@@ -777,7 +310,6 @@ export default function Index() {
     if (!word || audioLoading) return;
     setAudioLoading(true);
     setAudioError(null);
-    repeatWordCount.current = repeatWordCount.current + 1;
     try {
       const url = await fetchPronunciationAudio(word.word);
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
@@ -805,7 +337,6 @@ export default function Index() {
   };
   const togglePos = () => {
     setPosOpen((v) => !v);
-    supportsViewed.current.partOfSpeechViewed = true;
   };
 
   const hasWord = !!word && !loading;
@@ -844,14 +375,38 @@ export default function Index() {
         />
       )}
       {/* Top app bar — webapp style */}
-      <Header
-        theme={theme}
-        onThemeChange={handleThemeChange}
-        level={showDashboard ? undefined : effectiveLevel()}
-        showSound={showPractice}
-        onLogoClick={handleBackToDashboard}
-        maxWidthClass="max-w-6xl"
-      />
+      <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-transparent backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-8">
+          <button
+            onClick={handleBackToDashboard}
+            className="flex items-center gap-2 rounded-lg px-1.5 py-1 -ml-1.5 hover:bg-primary/10 transition-colors"
+            title="Home"
+          >
+            <img src={beePng} alt="Spelling bee mascot" className="h-14 w-auto mt-1" />
+            <span className="text-lg font-display tracking-tight text-foreground font-serif font-semibold">
+              AI Spelling Coach
+            </span>
+          </button>
+          <div className="flex items-center gap-1">
+            <AuthMenu />
+            {showPractice && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={toggleSound}
+                    className="p-2 rounded-lg bg-muted text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                    aria-label="Sound"
+                  >
+                    {soundEnabled ? <Volume1 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Sound</TooltipContent>
+              </Tooltip>
+            )}
+            <ThemePicker current={theme} onChange={setTheme} level={showDashboard ? undefined : effectiveLevel()} />
+          </div>
+        </div>
+      </header>
 
       <div className={cn(
         "mx-auto px-4 sm:px-8 py-6 sm:py-10",
@@ -1011,7 +566,7 @@ export default function Index() {
           >
             {/* Rewards strip — all levels */}
             <RewardsStrip
-              stats={rewards.getStats(practiceMode, effectiveLevel())}
+              stats={rewards.getStats(effectiveLevel())}
               newBadge={rewards.newBadge}
               onClearNewBadge={rewards.clearNewBadge}
             />
@@ -1099,12 +654,10 @@ export default function Index() {
                     targetWord={word.word}
                     disabled={submitting || audioLoading}
                     onSpellingAttempt={(parsed) => {
-                      usedVoiceInput.current = true;
                       setAttempt(parsed);
                       setTimeout(() => inputRef.current?.focus(), 50);
                     }}
                     onSupportResponse={(res) => {
-                      usedVoiceInput.current = true;
                       if (res.intent === "definition") {
                         setDefOpen(true);
                         supportsViewed.current.definitionViewed = true;

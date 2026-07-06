@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
 import Index from "./pages/Index.tsx";
 import Landing from "./pages/Landing.tsx";
+import MockBee from "./pages/MockBee.tsx";
 import Privacy from "./pages/Privacy.tsx";
 import DataDeletion from "./pages/DataDeletion.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -22,6 +23,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/mock-bee" element={<MockBee />} />
             <Route path="/landing" element={<Landing />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/profile" element={<Profile />} />

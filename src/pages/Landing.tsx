@@ -36,7 +36,7 @@ const features = [
   },
   {
     icon: Globe,
-    title: "Foreign Origin Drills",
+    title: "Language Origin Drills",
     desc: "Master tricky words rooted in French, Japanese, Latin, Greek, and more — with etymology baked in.",
   },
   {
@@ -66,7 +66,7 @@ const themes = [
 ];
 
 const steps = [
-  { n: "01", title: "Pick a channel", desc: "Standard practice, custom lists, or foreign-origin drills." },
+  { n: "01", title: "Pick a channel", desc: "Standard practice, custom lists, or language-origin drills." },
   { n: "02", title: "Spell out loud or type", desc: "Audio pronunciations, hints, and on-demand definitions." },
   { n: "03", title: "Get coached", desc: "Per-word miss analysis, memory tips, and a downloadable session report." },
 ];
@@ -142,7 +142,7 @@ export default function Landing() {
             </h1>
             <p className="mt-5 text-lg text-muted-foreground max-w-xl">
               A delightful, voice-first spelling tutor for kids — with deep coaching feedback,
-              custom word lists, foreign-origin drills, and downloadable session reports parents love.
+              custom word lists, language-origin drills, and downloadable session reports parents love.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <button

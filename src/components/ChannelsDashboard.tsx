@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { GraduationCap, BookOpen, Globe, Sparkles, Loader2, Trophy, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ interface CardConfig {
 }
 
 export function ChannelsDashboard({ onSelectChannel }: ChannelsDashboardProps) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [customLists, setCustomLists] = useState<CustomListSummary[]>([]);
   const [origins, setOrigins] = useState<ForeignOriginSummary[]>([]);
@@ -103,7 +105,7 @@ export function ChannelsDashboard({ onSelectChannel }: ChannelsDashboardProps) {
       Icon: Trophy,
       bgClass: "bg-[hsl(var(--channel-yellow))]",
       iconColorClass: "text-warning",
-      onClick: () => {},
+      onClick: () => navigate("/mock-bee"),
     },
     {
       key: "reports",

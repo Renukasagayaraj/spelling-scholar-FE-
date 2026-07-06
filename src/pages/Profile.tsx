@@ -17,8 +17,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { createStripePortalSession, createStripeCheckoutSession } from "@/lib/api";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { Header } from "@/components/Header";
-import { type ThemeKey } from "@/components/ThemePicker";
+import beePng from "@/assets/bee.png";
+import { AuthMenu } from "@/components/AuthMenu";
+import { ThemePicker, type ThemeKey } from "@/components/ThemePicker";
 
 export default function Profile() {
     const {
@@ -29,53 +30,10 @@ export default function Profile() {
         cancelAtPeriodEnd,
         refreshSubscription,
         signOut,
-        profile,
-        updateProfile,
     } = useAuth();
     const [busy, setBusy] = useState(false);
     const [stripeAction, setStripeAction] = useState<"billing" | "checkout" | null>(null);
     const navigate = useNavigate();
-
-    const [fullName, setFullName] = useState("");
-    const [childId, setChildId] = useState("");
-    const [age, setAge] = useState<number | "">("");
-    const [grade, setGrade] = useState("");
-    const [spellingLevel, setSpellingLevel] = useState("");
-    const [saving, setSaving] = useState(false);
-
-    useEffect(() => {
-        if (profile) {
-            setFullName(profile.full_name || "");
-            setChildId(profile.child_id || "");
-            setAge(profile.age ?? "");
-            setGrade(profile.grade || "");
-            setSpellingLevel(profile.spelling_level || "");
-        }
-    }, [profile]);
-
-    const handleSaveProfile = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setSaving(true);
-        try {
-            const { error } = await updateProfile({
-                full_name: fullName,
-                child_id: childId || "student",
-                age: age === "" ? null : Number(age),
-                grade,
-                spelling_level: spellingLevel,
-            });
-            if (error) {
-                toast.error(error);
-            } else {
-                toast.success("Profile settings saved successfully!");
-            }
-        } catch (err) {
-            console.error(err);
-            toast.error("Failed to save profile settings.");
-        } finally {
-            setSaving(false);
-        }
-    };
 
     const [theme, setTheme] = useState<ThemeKey>(() => {
         return (localStorage.getItem("spelling-coach-theme") as ThemeKey) || "default";
@@ -85,20 +43,6 @@ export default function Profile() {
         document.documentElement.setAttribute("data-theme", theme === "default" ? "" : theme);
         localStorage.setItem("spelling-coach-theme", theme);
     }, [theme]);
-
-    // Sync theme setting from database profile when loaded
-    useEffect(() => {
-        if (profile?.theme_preference) {
-            setTheme(profile.theme_preference as ThemeKey);
-        }
-    }, [profile?.theme_preference]);
-
-    const handleThemeChange = async (newTheme: ThemeKey) => {
-        setTheme(newTheme);
-        if (user) {
-            await updateProfile({ theme_preference: newTheme });
-        }
-    };
 
     useEffect(() => {
         if (!loading && !user) {
@@ -188,11 +132,23 @@ export default function Profile() {
     return (
         <div className="min-h-screen">
             {/* Top Header */}
-            <Header
-                theme={theme}
-                onThemeChange={handleThemeChange}
-                maxWidthClass="max-w-4xl"
-            />
+            <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-transparent backdrop-blur-md">
+                <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4 sm:px-8">
+                    <Link
+                        to="/"
+                        className="flex items-center gap-2 rounded-lg px-1.5 py-1 -ml-1.5 hover:bg-primary/10 transition-colors"
+                    >
+                        <img src={beePng} alt="Spelling bee mascot" className="h-12 w-auto mt-1" />
+                        <span className="text-lg font-display tracking-tight text-[#1e3a5f] font-serif font-semibold">
+                            AI Spelling Coach
+                        </span>
+                    </Link>
+                    <div className="flex items-center gap-2">
+                        <AuthMenu />
+                        <ThemePicker current={theme} onChange={setTheme} />
+                    </div>
+                </div>
+            </header>
 
             {/* Main Content Area */}
             <main className="mx-auto max-w-3xl px-4 sm:px-8 py-10 space-y-8">
@@ -269,112 +225,6 @@ export default function Profile() {
 
                         {/* Right side: Subscription Management */}
                         <div className="md:col-span-2 space-y-6">
-                            {/* Profile Details Form */}
-                            <div className="bg-card border border-border/60 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
-                                <div className="flex items-center gap-2 border-b border-border/50 pb-4">
-                                    <div className="p-2 bg-primary/10 text-primary rounded-xl">
-                                        <UserIcon className="h-5 w-5" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-xl font-serif font-bold text-[#1e3a5f]">
-                                            Profile Settings
-                                        </h2>
-                                        <p className="text-xs text-muted-foreground mt-0.5">
-                                            Update your learning profile to customize spelling feedback.
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <form onSubmit={handleSaveProfile} className="space-y-4">
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div className="space-y-1.5">
-                                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-                                                Full Name
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={fullName}
-                                                onChange={(e) => setFullName(e.target.value)}
-                                                placeholder="Enter full name"
-                                                className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                                            />
-                                        </div>
-
-                                        <div className="space-y-1.5">
-                                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-                                                Age
-                                            </label>
-                                            <input
-                                                type="number"
-                                                value={age}
-                                                onChange={(e) => setAge(e.target.value === "" ? "" : Number(e.target.value))}
-                                                placeholder="e.g. 10"
-                                                min="0"
-                                                className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                                            />
-                                        </div>
-
-                                        <div className="space-y-1.5">
-                                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-                                                School Grade
-                                            </label>
-                                            <select
-                                                value={grade}
-                                                onChange={(e) => setGrade(e.target.value)}
-                                                className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                                            >
-                                                <option value="">Select Grade</option>
-                                                <option value="K">Kindergarten</option>
-                                                <option value="1">1st Grade</option>
-                                                <option value="2">2nd Grade</option>
-                                                <option value="3">3rd Grade</option>
-                                                <option value="4">4th Grade</option>
-                                                <option value="5">5th Grade</option>
-                                                <option value="6">6th Grade</option>
-                                                <option value="7">7th Grade</option>
-                                                <option value="8">8th Grade</option>
-                                                <option value="High School">High School</option>
-                                            </select>
-                                        </div>
-
-                                        <div className="space-y-1.5">
-                                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-                                                Spelling Target Level
-                                            </label>
-                                            <select
-                                                value={spellingLevel}
-                                                onChange={(e) => setSpellingLevel(e.target.value)}
-                                                className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                                            >
-                                                <option value="">Select Level</option>
-                                                <option value="beginner">Beginner</option>
-                                                <option value="intermediate">Intermediate</option>
-                                                <option value="advanced">Advanced</option>
-                                                <option value="competition">Competition</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        type="submit"
-                                        disabled={saving}
-                                        className="w-full flex items-center justify-center gap-2 rounded-xl py-3 font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-all shadow-md active:scale-[0.99] mt-2"
-                                    >
-                                        {saving ? (
-                                            <>
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                                Saving Changes...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Check className="h-4.5 w-4.5" />
-                                                Save Profile Settings
-                                            </>
-                                        )}
-                                    </button>
-                                </form>
-                            </div>
-
                             {subscribed ? (
                                 /* Subscribed Premium Panel */
                                 <div className="bg-card border border-amber-500/20 bg-gradient-to-b from-amber-500/[0.02] to-transparent rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">

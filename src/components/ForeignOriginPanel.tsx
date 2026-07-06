@@ -32,7 +32,7 @@ export function ForeignOriginPanel({
       const data = await fetchForeignOrigins();
       setOrigins(data.origins || []);
     } catch {
-      setError("Could not load foreign origins.");
+      setError("Could not load language origins.");
     } finally {
       setLoading(false);
     }
