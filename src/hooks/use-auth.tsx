@@ -76,7 +76,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (typeof window === "undefined") return;
       const hash = window.location.hash;
       if (hash && /[#&](access_token|refresh_token|provider_token|error_description)=/.test(hash)) {
-        const cleanUrl = window.location.pathname + window.location.search;
+        // const cleanUrl = window.location.pathname + window.location.search;
+        let cleanUrl = window.location.pathname;
+        if (window.location.search && window.location.search !== "?") {
+          cleanUrl += window.location.search;
+        }
+        cleanUrl = cleanUrl.replace(/[?#]$/, "");
         window.history.replaceState(null, "", cleanUrl);
       }
     };
