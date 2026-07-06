@@ -74,9 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Supabase's detectSessionInUrl parses them, but we clean the address bar.
     const scrubAuthHash = () => {
       if (typeof window === "undefined") return;
-      const hash = window.location.hash;
-      if (hash && /[#&](access_token|refresh_token|provider_token|error_description)=/.test(hash)) {
-        // const cleanUrl = window.location.pathname + window.location.search;
+      const href = window.location.href;
+      if (href.includes("#access_token=") || href.includes("#refresh_token=") || href.endsWith("#")) {
         let cleanUrl = window.location.pathname;
         if (window.location.search && window.location.search !== "?") {
           cleanUrl += window.location.search;
@@ -92,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession);
       setUser(newSession?.user ?? null);
       scrubAuthHash();
+      setTimeout(scrubAuthHash, 50);
     });
     // 2. Then fetch existing session
     supabase.auth.getSession().then(({ data }) => {
@@ -99,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(data.session?.user ?? null);
       setLoading(false);
       scrubAuthHash();
+      setTimeout(scrubAuthHash, 50);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
