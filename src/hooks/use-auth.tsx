@@ -70,11 +70,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Strip OAuth tokens from the URL hash so they aren't visible/shareable.
+    // Supabase's detectSessionInUrl parses them, but we clean the address bar.
     const scrubAuthHash = () => {
       if (typeof window === "undefined") return;
       const hash = window.location.hash;
-      const href = window.location.href;
-      if (/[#&](access_token|refresh_token|provider_token|error_description)=/.test(hash) || href.endsWith("#")) {
+      if (hash && /[#&](access_token|refresh_token|provider_token|error_description)=/.test(hash)) {
         const cleanUrl = window.location.pathname + window.location.search;
         window.history.replaceState(null, "", cleanUrl);
       }
@@ -86,7 +87,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession);
       setUser(newSession?.user ?? null);
       scrubAuthHash();
-      setTimeout(scrubAuthHash, 50);
     });
     // 2. Then fetch existing session
     supabase.auth.getSession().then(({ data }) => {
@@ -94,7 +94,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(data.session?.user ?? null);
       setLoading(false);
       scrubAuthHash();
-      setTimeout(scrubAuthHash, 50);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
