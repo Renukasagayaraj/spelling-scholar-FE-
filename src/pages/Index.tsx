@@ -7,7 +7,7 @@ import { LevelSelector } from "@/components/LevelSelector";
 import { SupportCard } from "@/components/SupportCard";
 import { CoachingResult } from "@/components/CoachingResult";
 import { DebugPanel } from "@/components/DebugPanel";
-import { ThemePicker, type ThemeKey } from "@/components/ThemePicker";
+import { type ThemeKey } from "@/components/ThemePicker";
 import { type PracticeMode } from "@/components/PracticeModeSwitch";
 import { CustomListPanel } from "@/components/CustomListPanel";
 import { ForeignOriginPanel } from "@/components/ForeignOriginPanel";
@@ -31,11 +31,9 @@ import type {
   NextWordParams,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { AuthMenu } from "@/components/AuthMenu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type HistoryEntry } from "@/components/SessionHistoryPanel";
 import { SessionHistorySidebar } from "@/components/SessionHistorySidebar";
-import beePng from "@/assets/bee.png";
+import { Header } from "@/components/Header";
 import { useAuth } from "@/hooks/use-auth";
 import { PaymentDialog } from "@/components/PaymentDialog";
 import { AuthDialog } from "@/components/AuthDialog";
@@ -396,38 +394,14 @@ export default function Index() {
         />
       )}
       {/* Top app bar — webapp style */}
-      <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-transparent backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-8">
-          <button
-            onClick={handleBackToDashboard}
-            className="flex items-center gap-2 rounded-lg px-1.5 py-1 -ml-1.5 hover:bg-primary/10 transition-colors"
-            title="Home"
-          >
-            <img src={beePng} alt="Spelling bee mascot" className="h-14 w-auto mt-1" />
-            <span className="text-lg font-display tracking-tight text-foreground font-serif font-semibold">
-              AI Spelling Coach
-            </span>
-          </button>
-          <div className="flex items-center gap-1">
-            <AuthMenu />
-            {showPractice && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={toggleSound}
-                    className="p-2 rounded-lg bg-muted text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                    aria-label="Sound"
-                  >
-                    {soundEnabled ? <Volume1 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>Sound</TooltipContent>
-              </Tooltip>
-            )}
-            <ThemePicker current={theme} onChange={handleThemeChange} level={showDashboard ? undefined : effectiveLevel()} />
-          </div>
-        </div>
-      </header>
+      <Header
+        theme={theme}
+        onThemeChange={handleThemeChange}
+        level={showDashboard ? undefined : effectiveLevel()}
+        showSound={showPractice}
+        onLogoClick={handleBackToDashboard}
+        maxWidthClass="max-w-6xl"
+      />
 
       <div className={cn(
         "mx-auto px-4 sm:px-8 py-6 sm:py-10",
