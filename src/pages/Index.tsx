@@ -17,7 +17,14 @@ import { LevelUpFlash } from "@/components/LevelUpFlash";
 import { DinoDecor } from "@/components/DinoDecor";
 import { useRewards } from "@/hooks/use-rewards";
 import { ArrowLeft, GraduationCap, List as ListIcon, Globe } from "lucide-react";
-import { fetchNextWord, submitSpellingAttempt, fetchPronunciationAudio } from "@/lib/api";
+import {
+  fetchNextWord,
+  submitSpellingAttempt,
+  fetchPronunciationAudio,
+  startPracticeSession,
+  recordWordAttempt,
+  endPracticeSession,
+} from "@/lib/api";
 import { VoiceMic } from "@/components/VoiceMic";
 import type { VoiceRespondResult } from "@/lib/voiceApi";
 import type {
@@ -70,7 +77,14 @@ export default function Index() {
   const [origOpen, setOrigOpen] = useState(false);
   const [posOpen, setPosOpen] = useState(false);
 
-  const supportsViewed = useRef<SupportsUsed>({ definitionViewed: false, exampleViewed: false, originViewed: false });
+  const supportsViewed = useRef<SupportsUsed>({
+    definitionViewed: false,
+    exampleViewed: false,
+    originViewed: false,
+    partOfSpeechViewed: false,
+  });
+  const repeatWordCount = useRef(0);
+  const usedVoiceInput = useRef(false);
 
   const [session, setSession] = useState<SessionContext>({
     mode: "practice",
@@ -93,6 +107,55 @@ export default function Index() {
   // Session word history (per practice session)
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [activeHistoryIndex, setActiveHistoryIndex] = useState<number | null>(null);
+
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
+  const [sessionWordCount, setSessionWordCount] = useState(0);
+  const [sessionCorrectCount, setSessionCorrectCount] = useState(0);
+
+  const endSession = async () => {
+    if (!activeSessionId || !sessionStartTime) return;
+    const duration = Math.round((Date.now() - sessionStartTime) / 1000);
+    try {
+      await endPracticeSession({
+        sessionId: activeSessionId,
+        totalWordsAttempted: sessionWordCount,
+        totalCorrect: sessionCorrectCount,
+        durationSeconds: duration,
+      });
+    } catch (err) {
+      console.error("Failed to end practice session:", err);
+    } finally {
+      setActiveSessionId(null);
+      setSessionStartTime(null);
+    }
+  };
+
+  const startSession = async (mode: string) => {
+    if (activeSessionId) {
+      // Use clean end function
+      const duration = Math.round((Date.now() - (sessionStartTime || Date.now())) / 1000);
+      try {
+        await endPracticeSession({
+          sessionId: activeSessionId,
+          totalWordsAttempted: sessionWordCount,
+          totalCorrect: sessionCorrectCount,
+          durationSeconds: duration,
+        });
+      } catch (err) {
+        console.error("Failed to end previous practice session:", err);
+      }
+    }
+    try {
+      const id = await startPracticeSession(mode);
+      setActiveSessionId(id);
+      setSessionStartTime(Date.now());
+      setSessionWordCount(0);
+      setSessionCorrectCount(0);
+    } catch (err) {
+      console.error("Failed to start practice session:", err);
+    }
+  };
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme === "default" ? "" : theme);
@@ -137,7 +200,14 @@ export default function Index() {
       URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = null;
     }
-    supportsViewed.current = { definitionViewed: false, exampleViewed: false, originViewed: false };
+    supportsViewed.current = {
+      definitionViewed: false,
+      exampleViewed: false,
+      originViewed: false,
+      partOfSpeechViewed: false,
+    };
+    repeatWordCount.current = 0;
+    usedVoiceInput.current = false;
     setSession((s) => ({ ...s, previousAttemptsOnThisWord: 0 }));
   };
 
@@ -155,7 +225,14 @@ export default function Index() {
       URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = null;
     }
-    supportsViewed.current = { definitionViewed: false, exampleViewed: false, originViewed: false };
+    supportsViewed.current = {
+      definitionViewed: false,
+      exampleViewed: false,
+      originViewed: false,
+      partOfSpeechViewed: false,
+    };
+    repeatWordCount.current = 0;
+    usedVoiceInput.current = false;
     setSession((s) => ({ ...s, previousAttemptsOnThisWord: 0 }));
     try {
       const w = await fetchNextWord(params);
@@ -171,6 +248,7 @@ export default function Index() {
   const handleLevelChange = (lvl: number) => {
     setLevel(lvl);
     loadWord({ level: lvl });
+    startSession(`standard_level_${lvl}`);
   };
 
   const handleSelectChannel = (selection: ChannelSelection) => {
@@ -206,6 +284,7 @@ export default function Index() {
         setSelectedCustomList(selection.list);
         setCustomPracticeActive(true);
         loadWord({ customListId: selection.list.id });
+        startSession(`custom_list_${selection.list.id}`);
         break;
       case "foreignManage":
         setPracticeMode("foreignOrigin");
@@ -217,6 +296,7 @@ export default function Index() {
         setSelectedForeignOrigin(selection.origin);
         setForeignPracticeActive(true);
         loadWord({ foreignOrigin: selection.origin.origin });
+        startSession(`foreign_origin_${selection.origin.origin}`);
         break;
     }
   };
@@ -228,12 +308,14 @@ export default function Index() {
     // Keep session history across dashboard visits; clears on reload.
     setActiveHistoryIndex(null);
     resetWordState();
+    endSession();
   };
 
   const handleStartCustomPractice = () => {
     if (!selectedCustomList) return;
     setCustomPracticeActive(true);
     loadWord({ customListId: selectedCustomList.id });
+    startSession(`custom_list_${selectedCustomList.id}`);
   };
 
   const handleStartForeignPractice = () => {
@@ -247,6 +329,7 @@ export default function Index() {
     }
     setForeignPracticeActive(true);
     loadWord({ foreignOrigin: selectedForeignOrigin.origin });
+    startSession(`foreign_origin_${selectedForeignOrigin.origin}`);
   };
 
   const effectiveLevel = (): number => {
@@ -280,7 +363,33 @@ export default function Index() {
         return next;
       });
       const lvl = effectiveLevel();
-      if (res.correctness?.isCorrect) {
+      const isCorrect = !!res.correctness?.isCorrect;
+
+      if (activeSessionId) {
+        setSessionWordCount((c) => c + 1);
+        if (isCorrect) {
+          setSessionCorrectCount((c) => c + 1);
+        }
+
+        recordWordAttempt({
+          sessionId: activeSessionId,
+          targetWord: word.word,
+          childAttempt: attempt.trim().toLowerCase(),
+          isCorrect,
+          attemptNumber: session.previousAttemptsOnThisWord + 1,
+          level: lvl,
+          definitionViewed: supportsViewed.current.definitionViewed,
+          exampleViewed: supportsViewed.current.exampleViewed,
+          originViewed: supportsViewed.current.originViewed,
+          partOfSpeechViewed: supportsViewed.current.partOfSpeechViewed,
+          repeatWordCount: repeatWordCount.current,
+          usedVoiceInput: usedVoiceInput.current,
+        }).catch((err) => {
+          console.error("Failed to save attempt in DB:", err);
+        });
+      }
+
+      if (isCorrect) {
         if (lvl !== 3) playCheer();
         rewards.recordCorrect(lvl);
         // Confetti only for Level 1 (younger kids). L2/L3 get streaks + fanfare instead.
@@ -329,6 +438,7 @@ export default function Index() {
     if (!word || audioLoading) return;
     setAudioLoading(true);
     setAudioError(null);
+    repeatWordCount.current = repeatWordCount.current + 1;
     try {
       const url = await fetchPronunciationAudio(word.word);
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
@@ -356,6 +466,7 @@ export default function Index() {
   };
   const togglePos = () => {
     setPosOpen((v) => !v);
+    supportsViewed.current.partOfSpeechViewed = true;
   };
 
   const hasWord = !!word && !loading;
@@ -649,10 +760,12 @@ export default function Index() {
                     targetWord={word.word}
                     disabled={submitting || audioLoading}
                     onSpellingAttempt={(parsed) => {
+                      usedVoiceInput.current = true;
                       setAttempt(parsed);
                       setTimeout(() => inputRef.current?.focus(), 50);
                     }}
                     onSupportResponse={(res) => {
+                      usedVoiceInput.current = true;
                       if (res.intent === "definition") {
                         setDefOpen(true);
                         supportsViewed.current.definitionViewed = true;
