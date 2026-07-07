@@ -410,18 +410,7 @@ export default function Index() {
 
   // Sync active session info and history to localStorage for recovery
   useEffect(() => {
-    console.log("🎉 isRecovering", isRecovering);
     if (isRecovering) return;
-    console.log("🎉 activeSessionId", activeSessionId);
-    console.log("🎉 sessionStartTime", sessionStartTime);
-    console.log("🎉 sessionWordCount", sessionWordCount);
-    console.log("🎉 sessionCorrectCount", sessionCorrectCount);
-    console.log("🎉 activeChannel", activeChannel);
-    console.log("🎉 level", level);
-    console.log("🎉 customPracticeActive", customPracticeActive);
-    console.log("🎉 selectedCustomList", selectedCustomList);
-    console.log("🎉 foreignPracticeActive", foreignPracticeActive);
-    console.log("🎉🎉 selectedForeignOrigin", selectedForeignOrigin);
     if (activeSessionId && sessionStartTime) {
       localStorage.setItem("active_session_recovery", JSON.stringify({
         activeSessionId,
@@ -693,12 +682,18 @@ export default function Index() {
         spellingLevel: profile.spelling_level || "competition",
       } : DEFAULT_PROFILE;
 
+      const lvl = effectiveLevel();
       const res = await submitSpellingAttempt({
         targetWord: word.word,
         childAttempt: attempt.trim().toLowerCase(),
         childProfile,
         supportsUsed: { ...supportsViewed.current },
         sessionContext: session,
+        definition: word.definition,
+        exampleSentence: word.exampleSentence,
+        origin: word.origin,
+        partOfSpeech: word.partOfSpeech,
+        level: lvl,
       });
       setResult(res);
       setHistory((h) => {
@@ -706,7 +701,6 @@ export default function Index() {
         setActiveHistoryIndex(next.length - 1);
         return next;
       });
-      const lvl = effectiveLevel();
       const isCorrect = !!res.correctness?.isCorrect;
 
       if (activeSessionId) {
