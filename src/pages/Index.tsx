@@ -24,6 +24,7 @@ import {
   startPracticeSession,
   recordWordAttempt,
   endPracticeSession,
+  fetchUserStatistics,
 } from "@/lib/api";
 import { VoiceMic } from "@/components/VoiceMic";
 import type { VoiceRespondResult } from "@/lib/voiceApi";
@@ -224,6 +225,21 @@ export default function Index() {
       setTheme(profile.theme_preference as ThemeKey);
     }
   }, [profile?.theme_preference]);
+
+  // Fetch user statistics from backend when user logs in
+  useEffect(() => {
+    if (user) {
+      fetchUserStatistics()
+        .then((stats) => {
+          if (stats) {
+            rewards.syncWithDatabase(stats);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to sync rewards statistics with backend:", err);
+        });
+    }
+  }, [user, rewards.syncWithDatabase]);
 
   const handleThemeChange = async (newTheme: ThemeKey) => {
     setTheme(newTheme);

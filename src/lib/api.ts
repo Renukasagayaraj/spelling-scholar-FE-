@@ -553,3 +553,27 @@ export async function endPracticeSession(body: EndSessionBody, keepAlive?: boole
   if (!res.ok) throw new Error("Failed to end practice session");
 }
 
+export interface DbUserStats {
+  level: number;
+  current_streak: number;
+  best_streak: number;
+  total_attempts: number;
+  mastered_words: number;
+  badges: string[];
+  total_sessions: number;
+}
+
+export async function fetchUserStatistics(): Promise<DbUserStats[]> {
+  if (USE_MOCK_FALLBACK) {
+    return [];
+  }
+  const res = await fetch(`${BASE_URL}/api/users/stats`, {
+    headers: await authHeaders(),
+  });
+  if (res.status === 401) await handle401();
+  if (!res.ok) throw new Error("Failed to fetch user statistics");
+  const data = await res.json();
+  return data.stats;
+}
+
+
