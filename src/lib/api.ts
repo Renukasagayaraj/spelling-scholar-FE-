@@ -478,7 +478,6 @@ export interface WordAttemptRecord {
   target_word: string;
   child_attempt: string;
   is_correct: boolean;
-  attempt_number: number;
   level?: number;
   definition_viewed?: boolean;
   example_viewed?: boolean;
@@ -509,7 +508,6 @@ export interface RecordAttemptBody {
   targetWord: string;
   childAttempt: string;
   isCorrect: boolean;
-  attemptNumber?: number;
   level?: number;
   definitionViewed?: boolean;
   exampleViewed?: boolean;
@@ -541,7 +539,7 @@ export interface EndSessionBody {
   durationSeconds: number;
 }
 
-export async function endPracticeSession(body: EndSessionBody): Promise<void> {
+export async function endPracticeSession(body: EndSessionBody, keepAlive?: boolean): Promise<void> {
   const res = await fetch(`${BASE_URL}/api/sessions/end`, {
     method: "POST",
     headers: {
@@ -549,6 +547,7 @@ export async function endPracticeSession(body: EndSessionBody): Promise<void> {
       ...(await authHeaders()),
     },
     body: JSON.stringify(body),
+    keepalive: keepAlive,
   });
   if (res.status === 401) await handle401();
   if (!res.ok) throw new Error("Failed to end practice session");
