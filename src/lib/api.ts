@@ -514,6 +514,7 @@ export interface RecordAttemptBody {
   childAttempt: string;
   isCorrect: boolean;
   level?: number;
+  mode?: string;
   definitionViewed?: boolean;
   exampleViewed?: boolean;
   originViewed?: boolean;
@@ -559,7 +560,8 @@ export async function endPracticeSession(body: EndSessionBody, keepAlive?: boole
 }
 
 export interface DbUserStats {
-  level: number;
+  mode: string;
+  level: number | null;
   current_streak: number;
   best_streak: number;
   total_attempts: number;
