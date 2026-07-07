@@ -53,7 +53,7 @@ export default function Index() {
   });
   const { soundEnabled, toggleSound, playCheer } = useCheer();
   const rewards = useRewards();
-  const { user, subscribed } = useAuth();
+  const { user, subscribed, profile, updateProfile } = useAuth();
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [level, setLevel] = useState(0);
@@ -100,6 +100,20 @@ export default function Index() {
     document.documentElement.setAttribute("data-theme", theme === "default" ? "" : theme);
     localStorage.setItem("spelling-coach-theme", theme);
   }, [theme]);
+
+  // Sync theme setting from database profile when loaded
+  useEffect(() => {
+    if (profile?.theme_preference) {
+      setTheme(profile.theme_preference as ThemeKey);
+    }
+  }, [profile?.theme_preference]);
+
+  const handleThemeChange = async (newTheme: ThemeKey) => {
+    setTheme(newTheme);
+    if (user && updateProfile) {
+      await updateProfile({ theme_preference: newTheme });
+    }
+  };
 
   // Reset to default if current theme isn't allowed for the active level
   useEffect(() => {
@@ -247,10 +261,17 @@ export default function Index() {
     setSubmitting(true);
     setError(null);
     try {
+      const childProfile = profile ? {
+        childId: profile.child_id || "c1",
+        age: profile.age || 10,
+        grade: profile.grade || "5",
+        spellingLevel: profile.spelling_level || "competition",
+      } : DEFAULT_PROFILE;
+
       const res = await submitSpellingAttempt({
         targetWord: word.word,
         childAttempt: attempt.trim().toLowerCase(),
-        childProfile: DEFAULT_PROFILE,
+        childProfile,
         supportsUsed: { ...supportsViewed.current },
         sessionContext: session,
       });
@@ -403,7 +424,7 @@ export default function Index() {
                 <TooltipContent>Sound</TooltipContent>
               </Tooltip>
             )}
-            <ThemePicker current={theme} onChange={setTheme} level={showDashboard ? undefined : effectiveLevel()} />
+            <ThemePicker current={theme} onChange={handleThemeChange} level={showDashboard ? undefined : effectiveLevel()} />
           </div>
         </div>
       </header>

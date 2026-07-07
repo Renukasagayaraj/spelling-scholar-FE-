@@ -1,11 +1,18 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
-import { invalidateCustomListsCache, fetchSubscriptionStatus } from "@/lib/api";
+import {
+  invalidateCustomListsCache,
+  fetchSubscriptionStatus,
+  fetchUserProfile,
+  updateUserProfile,
+  type UserProfile
+} from "@/lib/api";
 
 interface AuthContextValue {
   user: User | null;
   session: Session | null;
+  profile: UserProfile | null;
   loading: boolean;
   configured: boolean;
   subscribed: boolean;
@@ -13,6 +20,8 @@ interface AuthContextValue {
   currentPeriodEnd: number | null;
   cancelAtPeriodEnd: boolean;
   refreshSubscription: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  updateProfile: (updates: Partial<Omit<UserProfile, "id" | "email">>) => Promise<{ error: string | null }>;
   signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signUpWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signInWithGoogle: () => Promise<{ error: string | null }>;
@@ -25,6 +34,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [subscribed, setSubscribed] = useState(false);
   const [checkingSubscription, setCheckingSubscription] = useState(false);
@@ -54,15 +64,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  const refreshProfile = useCallback(async () => {
+    if (!user) {
+      setProfile(null);
+      return;
+    }
+    try {
+      const prof = await fetchUserProfile();
+      setProfile(prof);
+    } catch (err) {
+      console.error("Failed to fetch user profile:", err);
+      setProfile(null);
+    }
+  }, [user]);
+
+  const updateProfile = async (updates: Partial<Omit<UserProfile, "id" | "email">>) => {
+    if (!user) return { error: "No user authenticated." };
+    try {
+      const updated = await updateUserProfile(updates);
+      setProfile(updated);
+      return { error: null };
+    } catch (err: any) {
+      console.error("Failed to update user profile:", err);
+      return { error: err?.message || "Failed to update profile." };
+    }
+  };
+
   useEffect(() => {
     if (user) {
       refreshSubscription();
+      refreshProfile();
     } else {
       setSubscribed(false);
       setCurrentPeriodEnd(null);
       setCancelAtPeriodEnd(false);
+      setProfile(null);
     }
-  }, [user, refreshSubscription]);
+  }, [user, refreshSubscription, refreshProfile]);
 
   useEffect(() => {
     if (!supabaseConfigured) {
@@ -101,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextValue = {
     user,
     session,
+    profile,
     loading,
     configured: supabaseConfigured,
     subscribed,
@@ -108,6 +147,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     currentPeriodEnd,
     cancelAtPeriodEnd,
     refreshSubscription,
+    refreshProfile,
+    updateProfile,
     signInWithPassword: async (email, password) => {
       if (!supabaseConfigured) return { error: "Auth is not configured. Please contact support." };
       const { error } = await supabase.auth.signInWithPassword({ email, password });

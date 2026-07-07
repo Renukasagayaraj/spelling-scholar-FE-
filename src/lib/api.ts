@@ -396,3 +396,63 @@ export async function createStripePortalSession(): Promise<{ url: string }> {
   }
   return res.json();
 }
+
+export interface UserProfile {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  theme_preference: string;
+  audio_enabled: boolean;
+  child_id: string | null;
+  age: number | null;
+  grade: string | null;
+  spelling_level: string | null;
+}
+
+export async function fetchUserProfile(): Promise<UserProfile> {
+  if (USE_MOCK_FALLBACK) {
+    const cached = localStorage.getItem("mock_user_profile");
+    if (cached) return JSON.parse(cached);
+    const mock: UserProfile = {
+      id: "mock-user-id",
+      email: "test@example.com",
+      full_name: "Mock Student",
+      theme_preference: "default",
+      audio_enabled: true,
+      child_id: "c1",
+      age: 10,
+      grade: "5",
+      spelling_level: "competition",
+    };
+    localStorage.setItem("mock_user_profile", JSON.stringify(mock));
+    return mock;
+  }
+  const res = await fetch(`${BASE_URL}/api/users/profile`, {
+    headers: await authHeaders(),
+  });
+  if (res.status === 401) await handle401();
+  if (!res.ok) throw new Error("Failed to fetch user profile");
+  const data = await res.json();
+  return data.profile;
+}
+
+export async function updateUserProfile(updates: Partial<Omit<UserProfile, "id" | "email">>): Promise<UserProfile> {
+  if (USE_MOCK_FALLBACK) {
+    const profile = await fetchUserProfile();
+    const updated = { ...profile, ...updates };
+    localStorage.setItem("mock_user_profile", JSON.stringify(updated));
+    return updated;
+  }
+  const res = await fetch(`${BASE_URL}/api/users/profile`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(await authHeaders()),
+    },
+    body: JSON.stringify(updates),
+  });
+  if (res.status === 401) await handle401();
+  if (!res.ok) throw new Error("Failed to update user profile");
+  const data = await res.json();
+  return data.profile;
+}
