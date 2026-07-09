@@ -214,6 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem("active_session_history");
       localStorage.removeItem("active_session_history_index");
       localStorage.removeItem("active_sessions_map");
+      localStorage.removeItem("spelling-coach-rewards-v1");
     },
   };
 

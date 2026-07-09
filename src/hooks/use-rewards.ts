@@ -119,8 +119,8 @@ export function useRewards() {
   const clearMilestone = useCallback(() => setMilestoneHit(null), []);
 
   const syncWithDatabase = useCallback((dbStatsList: any[]) => {
-    setAll((prev) => {
-      const next = { ...prev };
+    setAll(() => {
+      const next: AllStats = {};
       dbStatsList.forEach((row) => {
         const key = row.mode === "standard" ? `standard:${row.level || 1}` : row.mode;
         next[key] = {
