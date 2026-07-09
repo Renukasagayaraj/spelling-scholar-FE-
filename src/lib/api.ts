@@ -566,7 +566,7 @@ export interface DbUserStats {
   current_streak: number;
   best_streak: number;
   total_attempts: number;
-  mastered_words: number;
+  correct_attempts: number;
   badges: string[];
 }
 

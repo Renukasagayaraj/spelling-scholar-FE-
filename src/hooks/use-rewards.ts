@@ -52,7 +52,12 @@ export function useRewards() {
   }, [all]);
 
   const getStats = useCallback((mode: string, level?: number): LevelStats => {
-    const key = mode === "standard" ? `standard:${level ?? 1}` : mode;
+    let key = mode;
+    if (mode === "standard") {
+      key = `standard_level_${level ?? 1}`;
+    } else if (mode === "foreignOrigin") {
+      key = "foreign_origin";
+    }
     return all[key] ?? empty();
   }, [all]);
 
@@ -82,7 +87,12 @@ export function useRewards() {
   }, []);
 
   const recordCorrect = useCallback((mode: string, level?: number) => {
-    const key = mode === "standard" ? `standard:${level ?? 1}` : mode;
+    let key = mode;
+    if (mode === "standard") {
+      key = `standard_level_${level ?? 1}`;
+    } else if (mode === "foreignOrigin") {
+      key = "foreign_origin";
+    }
     setAll((prev) => {
       const cur = prev[key] ?? empty();
       const streak = cur.streak + 1;
@@ -108,7 +118,12 @@ export function useRewards() {
   }, [playFanfare]);
 
   const recordIncorrect = useCallback((mode: string, level?: number) => {
-    const key = mode === "standard" ? `standard:${level ?? 1}` : mode;
+    let key = mode;
+    if (mode === "standard") {
+      key = `standard_level_${level ?? 1}`;
+    } else if (mode === "foreignOrigin") {
+      key = "foreign_origin";
+    }
     setAll((prev) => {
       const cur = prev[key] ?? empty();
       return { ...prev, [key]: { ...cur, streak: 0 } };
@@ -122,11 +137,11 @@ export function useRewards() {
     setAll(() => {
       const next: AllStats = {};
       dbStatsList.forEach((row) => {
-        const key = row.mode === "standard" ? `standard:${row.level || 1}` : row.mode;
+        const key = row.mode;
         next[key] = {
           streak: row.current_streak || 0,
           bestStreak: row.best_streak || 0,
-          totalCorrect: row.mastered_words || 0,
+          totalCorrect: row.correct_attempts || 0,
           badges: row.badges || [],
         };
       });
