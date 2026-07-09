@@ -76,7 +76,9 @@ export default function Index() {
   });
   const { soundEnabled, toggleSound, playCheer } = useCheer();
   const rewards = useRewards();
-  const { user, subscribed, profile, updateProfile } = useAuth();
+  const { user, subscribed, profile, updateProfile, loading: authLoading } = useAuth();
+  const prevUserId = useRef<string | undefined>(undefined);
+  const hasInitializedRef = useRef(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [level, setLevel] = useState(0);
@@ -168,6 +170,9 @@ export default function Index() {
   const startSession = async (mode: string) => {
     if (isStartingSession.current) return;
     if (activeSessionId && activeSessionMode === mode) {
+      if (!word && !loading) {
+        loadWord(getParamsFromMode(mode));
+      }
       return;
     }
     isStartingSession.current = true;
@@ -305,6 +310,7 @@ export default function Index() {
           sessionWordCount: words,
           sessionCorrectCount: corrects,
           activeChannel: channel,
+          practiceMode: savedPracticeMode,
           level: lvl,
           customPracticeActive: customActive,
           selectedCustomList: customList,
@@ -319,6 +325,7 @@ export default function Index() {
           setSessionWordCount(words || 0);
           setSessionCorrectCount(corrects || 0);
           setActiveChannel(channel);
+          setPracticeMode(savedPracticeMode || "standard");
           setLevel(lvl || 1);
           setCustomPracticeActive(!!customActive);
           setSelectedCustomList(customList || null);
@@ -331,6 +338,7 @@ export default function Index() {
           if (savedHistory) {
             const parsedHistory = JSON.parse(savedHistory);
             setHistory(parsedHistory);
+            let restored = false;
             if (savedIndex !== null) {
               const idx = JSON.parse(savedIndex);
               setActiveHistoryIndex(idx);
@@ -339,7 +347,11 @@ export default function Index() {
                 setWord(entry.word);
                 setAttempt(entry.attempt);
                 setResult(entry.result);
+                restored = true;
               }
+            }
+            if (!restored && mode) {
+              loadWord(getParamsFromMode(mode));
             }
             setIsRecovering(false);
           } else {
@@ -387,6 +399,8 @@ export default function Index() {
                   setWord(lastEntry.word);
                   setAttempt(lastEntry.attempt);
                   setResult(lastEntry.result);
+                } else if (mode) {
+                  loadWord(getParamsFromMode(mode));
                 }
               })
               .catch((err) => {
@@ -419,6 +433,7 @@ export default function Index() {
         sessionWordCount,
         sessionCorrectCount,
         activeChannel,
+        practiceMode,
         level,
         customPracticeActive,
         selectedCustomList,
@@ -467,11 +482,46 @@ export default function Index() {
 
   // Reset active session local storage on login/logout to prevent stale state inheritance
   useEffect(() => {
-    localStorage.removeItem("active_sessions_map");
-    localStorage.removeItem("active_session_recovery");
-    localStorage.removeItem("active_session_history");
-    localStorage.removeItem("active_session_history_index");
-  }, [user?.id]);
+    if (authLoading) return;
+
+    if (!hasInitializedRef.current) {
+      prevUserId.current = user?.id;
+      hasInitializedRef.current = true;
+      return;
+    }
+
+    if (prevUserId.current !== user?.id) {
+      // Clear local storage
+      localStorage.removeItem("active_sessions_map");
+      localStorage.removeItem("active_session_recovery");
+      localStorage.removeItem("active_session_history");
+      localStorage.removeItem("active_session_history_index");
+
+      // Reset React state to clean up the UI
+      setActiveSessionId(null);
+      setActiveSessionMode(null);
+      setSessionStartTime(null);
+      setSessionWordCount(0);
+      setSessionCorrectCount(0);
+      setActiveChannel(null);
+      setLevel(0);
+      setWord(null);
+      setResult(null);
+      setHistory([]);
+      setActiveHistoryIndex(null);
+      setCustomPracticeActive(false);
+      setSelectedCustomList(null);
+      setForeignPracticeActive(false);
+      setSelectedForeignOrigin(null);
+      setSelectedForeignOriginDetails(null);
+      setAttempt("");
+      setDefOpen(false);
+      setExOpen(false);
+      setOrigOpen(false);
+      setPosOpen(false);
+    }
+    prevUserId.current = user?.id;
+  }, [user?.id, authLoading]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme === "default" ? "" : theme);
@@ -665,9 +715,10 @@ export default function Index() {
     startSession(`foreign_origin_${selectedForeignOrigin.origin}`);
   };
 
-  const effectiveLevel = (): number => {
-    if (practiceMode === "custom" && selectedCustomList) return Number(selectedCustomList.level) || level;
-    return level;
+  const effectiveLevel = (): number | undefined => {
+    if (practiceMode === "custom" && selectedCustomList) return Number(selectedCustomList.level) || undefined;
+    if (practiceMode === "foreignOrigin") return undefined;
+    return level || undefined;
   };
 
   const handleSubmit = async () => {
