@@ -1,9 +1,6 @@
 name: Deploy to Prod
 
 on:
-  push:
-    branches:
-      - prod
   workflow_dispatch:
     inputs:
       description:
@@ -40,9 +37,30 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.PROD_VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.PROD_VITE_SUPABASE_PUBLISHABLE_KEY }}
 
+  verify:
+    name: Verify Secrets
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Environment Secrets
+        run: |
+          MISSING=""
+          [ -z "${{ secrets.VERCEL_TOKEN }}" ] && MISSING="$MISSING VERCEL_TOKEN"
+          [ -z "${{ secrets.VERCEL_ORG_ID }}" ] && MISSING="$MISSING VERCEL_ORG_ID"
+          [ -z "${{ secrets.PROD_VERCEL_PROJECT_ID }}" ] && MISSING="$MISSING PROD_VERCEL_PROJECT_ID"
+          [ -z "${{ secrets.PROD_VITE_API_BASE_URL }}" ] && MISSING="$MISSING PROD_VITE_API_BASE_URL"
+          [ -z "${{ secrets.PROD_VITE_SENTRY_DSN }}" ] && MISSING="$MISSING PROD_VITE_SENTRY_DSN"
+          [ -z "${{ secrets.PROD_VITE_SUPABASE_URL }}" ] && MISSING="$MISSING PROD_VITE_SUPABASE_URL"
+          [ -z "${{ secrets.PROD_VITE_SUPABASE_PUBLISHABLE_KEY }}" ] && MISSING="$MISSING PROD_VITE_SUPABASE_PUBLISHABLE_KEY"
+          
+          if [ -n "$MISSING" ]; then
+            echo "::error::Missing GitHub Secrets:$MISSING"
+            exit 1
+          fi
+
   deploy:
     name: Deploy to Vercel (Prod)
-    needs: test
+    needs: verify
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -57,10 +75,10 @@ jobs:
         run: npm install --global vercel@latest
 
       - name: Pull Vercel Environment Information
-        run: |
-          mkdir -p .vercel
-          echo '{"orgId":"${{ secrets.VERCEL_ORG_ID }}","projectId":"${{ secrets.PROD_VERCEL_PROJECT_ID }}"}' > .vercel/project.json
-          vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.PROD_VERCEL_PROJECT_ID }}
 
       - name: Build Project Artifacts
         run: |
