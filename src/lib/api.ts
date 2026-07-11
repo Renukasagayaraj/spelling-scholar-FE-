@@ -493,19 +493,41 @@ export interface WordAttemptRecord {
   created_at: string;
 }
 
-export async function startPracticeSession(mode: string): Promise<string> {
+export type StartPracticeSessionResult =
+  | {
+      action: "created";
+      sessionId: string;
+    }
+  | {
+      action: "resume_existing";
+      sessionId: string;
+    }
+  | {
+      action: "active_session_conflict";
+      activeSessionId: string;
+      activeMode: string;
+    };
+
+export interface StartPracticeSessionRequest {
+  mode: string;
+  level?: number;
+  forceCloseCurrent?: boolean;
+}
+
+export async function startPracticeSession(
+  body: StartPracticeSessionRequest,
+): Promise<StartPracticeSessionResult> {
   const res = await fetch(`${BASE_URL}/api/sessions/start`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...(await authHeaders()),
     },
-    body: JSON.stringify({ mode }),
+    body: JSON.stringify(body),
   });
   if (res.status === 401) await handle401();
   if (!res.ok) throw new Error("Failed to start practice session");
-  const data = await res.json();
-  return data.sessionId;
+  return res.json();
 }
 
 export interface RecordAttemptBody {

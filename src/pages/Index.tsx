@@ -247,16 +247,18 @@ export default function Index() {
       }
       return;
     }
+
     isStartingSession.current = true;
 
     try {
-      // Save the current active session state to the map before switching
+      // Save current UI session state locally before switching modes.
       if (activeSessionId && activeSessionMode) {
         const savedMap = localStorage.getItem("active_sessions_map");
         const map = savedMap ? JSON.parse(savedMap) : {};
         const currentDuration = Math.round((Date.now() - (sessionStartTime || Date.now())) / 1000);
         const prevAcc = map[activeSessionMode]?.accumulatedDuration || 0;
         const totalDuration = prevAcc + currentDuration;
+
         map[activeSessionMode] = {
           activeSessionId,
           sessionStartTime,
@@ -266,71 +268,57 @@ export default function Index() {
           activeHistoryIndex,
           accumulatedDuration: totalDuration,
         };
-        localStorage.setItem("active_sessions_map", JSON.stringify(map));
 
-        // Also update the database for the ended session
-        try {
-          await endPracticeSession({
-            sessionId: activeSessionId,
-            totalWordsAttempted: sessionWordCount,
-            totalCorrect: sessionCorrectCount,
-            durationSeconds: totalDuration,
-          });
-        } catch (err) {
-          console.error("Failed to update previous practice session in DB:", err);
-        }
+        localStorage.setItem("active_sessions_map", JSON.stringify(map));
       }
 
-      // Check if the target mode has an existing session in the map
-      const savedMap = localStorage.getItem("active_sessions_map");
-      const map = savedMap ? JSON.parse(savedMap) : {};
-      if (map[mode]) {
-        const s = map[mode];
-        setActiveSessionId(s.activeSessionId);
-        setActiveSessionMode(mode);
-        setSessionStartTime(Date.now()); // Reset segment start time
-        setSessionWordCount(s.sessionWordCount);
-        setSessionCorrectCount(s.sessionCorrectCount);
-        setHistory(s.history);
+      const sessionRequest =
+        mode.startsWith("standard_level_")
+          ? {
+              mode: "standard",
+              level: Number(mode.replace("standard_level_", "")),
+              forceCloseCurrent: false,
+            }
+          : {
+              mode,
+              forceCloseCurrent: false,
+            };
 
-        // Always start with a new word and clean input box when entering/resuming the session
+      const result = await startPracticeSession(sessionRequest);
+
+      if (result.action === "active_session_conflict") {
+        setError(`You already have an active session in ${result.activeMode}.`);
+        return;
+      }
+
+      const id = result.sessionId;
+      setActiveSessionId(id);
+      setActiveSessionMode(mode);
+      setSessionStartTime(Date.now());
+
+      const attempts = await fetchSessionAttempts(id);
+      if (attempts && attempts.length > 0) {
+        const historyEntries = attempts.map(historyEntryFromAttempt);
+
+        setHistory(historyEntries);
+        setSessionWordCount(historyEntries.length);
+        setSessionCorrectCount(
+          historyEntries.filter((h) => h.result?.correctness?.isCorrect).length,
+        );
         setActiveHistoryIndex(null);
         setAttempt("");
         setResult(null);
         loadWord(getParamsFromMode(mode));
-        return;
+      } else {
+        setSessionWordCount(0);
+        setSessionCorrectCount(0);
+        setHistory([]);
+        setActiveHistoryIndex(null);
+        resetWordState();
+        loadWord(getParamsFromMode(mode));
       }
-
-      // Otherwise, start a brand new session or resume an existing one from DB
-      try {
-        const id = await startPracticeSession(mode);
-        setActiveSessionId(id);
-        setActiveSessionMode(mode);
-        setSessionStartTime(Date.now());
-
-        // Fetch attempts for this session ID from DB to see if it already has history
-        const attempts = await fetchSessionAttempts(id);
-        if (attempts && attempts.length > 0) {
-          const historyEntries = attempts.map(historyEntryFromAttempt);
-
-          setHistory(historyEntries);
-          setSessionWordCount(historyEntries.length);
-          setSessionCorrectCount(historyEntries.filter((h) => h.result?.correctness?.isCorrect).length);
-          setActiveHistoryIndex(null);
-          setAttempt("");
-          setResult(null);
-          loadWord(getParamsFromMode(mode));
-        } else {
-          setSessionWordCount(0);
-          setSessionCorrectCount(0);
-          setHistory([]);
-          setActiveHistoryIndex(null);
-          resetWordState();
-          loadWord(getParamsFromMode(mode));
-        }
-      } catch (err) {
-        console.error("Failed to start/resume practice session:", err);
-      }
+    } catch (err) {
+      console.error("Failed to start/resume practice session:", err);
     } finally {
       isStartingSession.current = false;
     }
