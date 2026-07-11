@@ -38,6 +38,7 @@ import type {
   ForeignOriginSummary,
   ForeignOriginDetail,
   NextWordParams,
+  DbWordAttempt,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { type HistoryEntry } from "@/components/SessionHistoryPanel";
@@ -68,6 +69,77 @@ const getParamsFromMode = (mode: string): NextWordParams => {
     return { foreignOrigin: origin };
   }
   return {};
+};
+
+const historyEntryFromAttempt = (att: DbWordAttempt): HistoryEntry => {
+  const isCorrect = att.is_correct;
+  const cat = att.word_catalog_entry;
+
+  return {
+    word: {
+      word: att.target_word,
+      level: cat?.level ?? String(att.level ?? 1),
+      gradeBand: cat?.gradeBand ?? "1-3",
+      difficulty: cat?.difficulty ?? "medium",
+      origin: cat?.origin ?? "",
+      definition: cat?.definition ?? "",
+      exampleSentence: cat?.exampleSentence ?? "",
+      partOfSpeech: cat?.partOfSpeech ?? "",
+      pronunciation: cat?.pronunciation ?? "",
+      patterns: cat?.patterns ?? [],
+    },
+    attempt: att.child_attempt,
+    result: {
+      correctness: { isCorrect, reinforceSuccess: true },
+      missAnalysis: {
+        summary: "",
+        errorTypes: [],
+        primaryErrorFocus: "",
+        likelyWrongWordInterpretation: false,
+        usedMeaningDisambiguationWell: false,
+      },
+      wordTeaching: {
+        formTeaching: {
+          summary: "",
+          patterns: [],
+          chunks: [],
+          chunkReason: "",
+          sayAloudFocus: "",
+        },
+        conceptTeaching: {
+          summary: "",
+          meaningFocus: "",
+          originFocus: "",
+          morphologyFocus: "",
+          originLabels: [],
+          morphologyLabels: [],
+        },
+      },
+      errorRelevance: { mostRelevantToError: "", confidence: 0, reason: "" },
+      teachingDecision: {
+        strategy: "",
+        primaryFocus: "",
+        secondaryFocuses: [],
+        confidence: 0,
+        rationale: "",
+      },
+      coachingText: {
+        shortFeedback: isCorrect ? "Correct!" : `Spelled as: ${att.child_attempt}`,
+        fullExplanation: isCorrect
+          ? "You spelled this word correctly."
+          : `The correct spelling is "${att.target_word}".`,
+        memoryTip: "",
+        sayAloudTip: "",
+      },
+      wordBreakdown: { displayChunks: [], chunkReason: "", matchedPatterns: [] },
+      conceptLabels: { patternLabels: [], originLabels: [], morphologyLabels: [] },
+      nextStep: {
+        practiceFocus: "",
+        shouldReviewSoon: !isCorrect,
+        suggestedSimilarWordTypes: [],
+      },
+    },
+  };
 };
 
 export default function Index() {
@@ -239,40 +311,7 @@ export default function Index() {
         // Fetch attempts for this session ID from DB to see if it already has history
         const attempts = await fetchSessionAttempts(id);
         if (attempts && attempts.length > 0) {
-          const historyEntries: HistoryEntry[] = attempts.map((att) => {
-            const isCorrect = att.is_correct;
-            const cat = att.word_catalog_entry;
-            return {
-              word: {
-                word: att.target_word,
-                level: cat?.level || att.level || 1,
-                gradeBand: cat?.gradeBand || "1-3",
-                difficulty: cat?.difficulty || "medium",
-                origin: cat?.origin || "",
-                definition: cat?.definition || "",
-                exampleSentence: cat?.exampleSentence || "",
-                partOfSpeech: cat?.partOfSpeech || "",
-                patterns: cat?.patterns || [],
-              } as any,
-              attempt: att.child_attempt,
-              result: {
-                correctness: { isCorrect, reinforceSuccess: true },
-                coachingText: {
-                  shortFeedback: isCorrect ? "Correct!" : `Spelled as: ${att.child_attempt}`,
-                  fullExplanation: isCorrect ? "You spelled this word correctly." : `The correct spelling is "${att.target_word}".`,
-                  memoryTip: "",
-                  sayAloudTip: "",
-                },
-                analysis: { phonemeMistakes: [], feedback: "", suggestions: "" },
-                wordBreakdown: { displayChunks: [], matchedPatterns: [] },
-                missAnalysis: { summary: "", errorTypes: [] },
-                wordTeaching: null,
-                conceptLabels: { patternLabels: [], originLabels: [], morphologyLabels: [] },
-                nextStep: { practiceFocus: "" },
-                audioBase64: "",
-              } as any,
-            };
-          });
+          const historyEntries = attempts.map(historyEntryFromAttempt);
 
           setHistory(historyEntries);
           setSessionWordCount(historyEntries.length);
@@ -359,40 +398,7 @@ export default function Index() {
             fetchSessionAttempts(id)
               .then((attempts) => {
                 if (attempts && attempts.length > 0) {
-                  const historyEntries: HistoryEntry[] = attempts.map((att) => {
-                    const isCorrect = att.is_correct;
-                    const cat = att.word_catalog_entry;
-                    return {
-                      word: {
-                        word: att.target_word,
-                        level: cat?.level || att.level || 1,
-                        gradeBand: cat?.gradeBand || "1-3",
-                        difficulty: cat?.difficulty || "medium",
-                        origin: cat?.origin || "",
-                        definition: cat?.definition || "",
-                        exampleSentence: cat?.exampleSentence || "",
-                        partOfSpeech: cat?.partOfSpeech || "",
-                        patterns: cat?.patterns || [],
-                      } as any,
-                      attempt: att.child_attempt,
-                      result: {
-                        correctness: { isCorrect, reinforceSuccess: true },
-                        coachingText: {
-                          shortFeedback: isCorrect ? "Correct!" : `Spelled as: ${att.child_attempt}`,
-                          fullExplanation: isCorrect ? "You spelled this word correctly." : `The correct spelling is "${att.target_word}".`,
-                          memoryTip: "",
-                          sayAloudTip: "",
-                        },
-                        analysis: { phonemeMistakes: [], feedback: "", suggestions: "" },
-                        wordBreakdown: { displayChunks: [], matchedPatterns: [] },
-                        missAnalysis: { summary: "", errorTypes: [] },
-                        wordTeaching: null,
-                        conceptLabels: { patternLabels: [], originLabels: [], morphologyLabels: [] },
-                        nextStep: { practiceFocus: "" },
-                        audioBase64: "",
-                      } as any,
-                    };
-                  });
+                  const historyEntries = attempts.map(historyEntryFromAttempt);
                   setHistory(historyEntries);
                   setActiveHistoryIndex(historyEntries.length - 1);
                   const lastEntry = historyEntries[historyEntries.length - 1];

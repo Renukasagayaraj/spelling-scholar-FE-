@@ -598,7 +598,7 @@ export interface DbWordAttempt {
   repeat_word_count?: number;
   used_voice_input?: boolean;
   created_at: string;
-  word_catalog_entry?: any;
+  word_catalog_entry?: Partial<WordData> | null;
 }
 
 export async function fetchSessionAttempts(sessionId: string): Promise<DbWordAttempt[]> {
@@ -613,6 +613,5 @@ export async function fetchSessionAttempts(sessionId: string): Promise<DbWordAtt
   const data = await res.json();
   return data.attempts;
 }
-
 
 
