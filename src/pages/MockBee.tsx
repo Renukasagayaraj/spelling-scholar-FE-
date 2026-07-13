@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -24,11 +24,11 @@ import { useAuth } from "@/hooks/use-auth";
 import { fetchCustomLists, type CustomListSummary } from "@/lib/api";
 import {
   createMockBeeRound,
+  endMockBeeSession,
   fetchMockBeeCurrentWordAudio,
   fetchMockBeeReview,
   submitMockBeeAttempt,
   timeoutMockBee,
-  TIMER_BY_LEVEL,
   type MockBeeChallenge,
   type MockBeeLevel,
   type MockBeeSession,
@@ -38,6 +38,8 @@ import {
 } from "@/lib/mockBeeApi";
 import { CoachingResult } from "@/components/CoachingResult";
 import beePng from "@/assets/bee.png";
+import { ActiveSessionConflictDialog } from "@/components/ActiveSessionConflictDialog";
+import { queuePracticeResumeMode, takeMockBeeResume } from "@/lib/sessionResume";
 
 const DEFAULT_PROFILE = { childId: "c1", age: 10, grade: "5", spellingLevel: "level_2" };
 
@@ -62,6 +64,13 @@ export default function MockBee() {
   const [customListId, setCustomListId] = useState<string | null>(null);
   const [setupError, setSetupError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [roundError, setRoundError] = useState<string | null>(null);
+  const [pendingConflict, setPendingConflict] = useState<{
+    activeMode: string;
+    activeSessionId: string;
+  } | null>(null);
+  const [conflictLoading, setConflictLoading] = useState(false);
+  const [conflictError, setConflictError] = useState<string | null>(null);
 
   // Round state
   const [session, setSession] = useState<MockBeeSession | null>(null);
@@ -146,29 +155,47 @@ export default function MockBee() {
     }
   };
 
-  const handleStart = async () => {
+  const startRound = async (forceCloseCurrent = false): Promise<boolean> => {
     setSetupError(null);
+    setRoundError(null);
     if (wordSource === "custom_list" && !customListId) {
       setSetupError("Pick a custom list to continue.");
-      return;
+      return false;
     }
     setCreating(true);
     try {
-      const s = await createMockBeeRound({
+      const result = await createMockBeeRound({
         level,
         wordSource,
         customListId: customListId || undefined,
         wordCount,
+        forceCloseCurrent,
         childProfile: { ...DEFAULT_PROFILE, spellingLevel: `level_${level}` },
       });
-      setSession(s);
+
+      if (result.action === "active_session_conflict") {
+        setConflictError(null);
+        setPendingConflict({
+          activeMode: result.activeMode,
+          activeSessionId: result.activeSessionId,
+        });
+        return false;
+      }
+
+      setSession(result.session);
       setStage("round");
       resetTurnState();
+      return true;
     } catch {
       setSetupError("Could not start the round. Please try again.");
+      return false;
     } finally {
       setCreating(false);
     }
+  };
+
+  const handleStart = async () => {
+    await startRound(false);
   };
 
   const goToReview = useCallback(async (sid: string) => {
@@ -200,6 +227,12 @@ export default function MockBee() {
     return () => clearTimeout(t);
   }, [stage, session, reviewPending, reviewWords]);
 
+  useEffect(() => {
+    if (stage !== "setup" || creating) return;
+    if (!takeMockBeeResume()) return;
+    void startRound(false);
+  }, [creating, stage]);
+
   const advanceFromResponse = (next: MockBeeSession) => {
     setSession(next);
     if (next.status === "completed") {
@@ -215,6 +248,7 @@ export default function MockBee() {
 
   const handleSubmit = async () => {
     if (!session || !challenge || !attempt.trim() || submitting) return;
+    setRoundError(null);
     setSubmitting(true);
     try {
       const res = await submitMockBeeAttempt(session.id, {
@@ -236,6 +270,7 @@ export default function MockBee() {
 
   const handleTimeout = async () => {
     if (!session) return;
+    setRoundError(null);
     try {
       const res = await timeoutMockBee(session.id);
       setLastResult({ isCorrect: false, revealed: false });
@@ -243,6 +278,80 @@ export default function MockBee() {
     } catch {
       // ignore
     }
+  };
+
+  const handleExitRound = async () => {
+    if (stage === "setup") {
+      navigate("/");
+      return;
+    }
+
+    if (stage === "review") {
+      setRoundError(null);
+      setSession(null);
+      setReviewWords(null);
+      setStage("setup");
+      return;
+    }
+
+    if (!session) {
+      setStage("setup");
+      return;
+    }
+
+    try {
+      await endMockBeeSession(session.id);
+      setRoundError(null);
+      setSession(null);
+      setReviewWords(null);
+      setStage("setup");
+      resetTurnState();
+    } catch (error) {
+      console.error("Failed to exit mock bee round:", error);
+      setRoundError("Could not exit the round. Please try again.");
+    }
+  };
+
+  const handleConflictResume = async () => {
+    if (!pendingConflict) return;
+
+    setConflictLoading(true);
+    setConflictError(null);
+
+    try {
+      queuePracticeResumeMode(pendingConflict.activeMode);
+      setPendingConflict(null);
+      navigate("/");
+    } catch (error) {
+      console.error("Failed to resume current session:", error);
+      setConflictError("Could not resume the current session. Please try again.");
+    } finally {
+      setConflictLoading(false);
+    }
+  };
+
+  const handleConflictStartNew = async () => {
+    if (!pendingConflict) return;
+
+    setConflictLoading(true);
+    setConflictError(null);
+
+    try {
+      const started = await startRound(true);
+      if (started) {
+        setPendingConflict(null);
+      }
+    } catch (error) {
+      console.error("Failed to start a new mock bee round:", error);
+      setConflictError("Could not stop the current session and start a new round.");
+    } finally {
+      setConflictLoading(false);
+    }
+  };
+
+  const handleConflictCancel = () => {
+    setConflictError(null);
+    setPendingConflict(null);
   };
 
   const handleHearWord = async () => {
@@ -288,7 +397,7 @@ export default function MockBee() {
       <div className="mx-auto max-w-3xl px-4 sm:px-8 py-6 sm:py-10">
         <div className="mb-6 flex items-center justify-between gap-2">
           <button
-            onClick={() => (stage === "setup" ? navigate("/") : setStage("setup"))}
+            onClick={handleExitRound}
             className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg px-2 py-1.5 hover:bg-accent/30"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -316,6 +425,12 @@ export default function MockBee() {
             creating={creating}
             onStart={handleStart}
           />
+        )}
+
+        {roundError && stage !== "setup" && (
+          <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {roundError}
+          </div>
         )}
 
         {stage === "round" && session && challenge && (
@@ -368,6 +483,16 @@ export default function MockBee() {
           />
         )}
       </div>
+      <ActiveSessionConflictDialog
+        open={!!pendingConflict}
+        activeMode={pendingConflict?.activeMode ?? null}
+        requestedMode="mock_bee"
+        loading={conflictLoading || creating}
+        error={conflictError}
+        onResume={handleConflictResume}
+        onStartNew={handleConflictStartNew}
+        onCancel={handleConflictCancel}
+      />
     </div>
   );
 }

@@ -68,6 +68,7 @@ export interface CreateRoundRequest {
   wordSource: MockBeeWordSource;
   customListId?: string;
   wordCount: MockBeeWordCount;
+  forceCloseCurrent?: boolean;
   childProfile: ChildProfile;
 }
 
@@ -127,9 +128,32 @@ export const TIMER_BY_LEVEL: Record<MockBeeLevel, MockBeeTimer> = {
 };
 
 // ===== Real API calls =====
+export type CreateMockBeeRoundResult =
+  | {
+      action: "created";
+      sessionId: string;
+      session: MockBeeSession;
+    }
+  | {
+      action: "resume_existing";
+      sessionId: string;
+      session: MockBeeSession;
+    }
+  | {
+      action: "active_session_conflict";
+      activeSessionId: string;
+      activeMode: string;
+    };
 
-export async function createMockBeeRound(req: CreateRoundRequest): Promise<MockBeeSession> {
-  if (USE_MOCK_FALLBACK) return mockCreateRound(req);
+export async function createMockBeeRound(req: CreateRoundRequest): Promise<CreateMockBeeRoundResult> {
+  if (USE_MOCK_FALLBACK) {
+    const session = mockCreateRound(req);
+    return {
+      action: "created",
+      sessionId: session.id,
+      session,
+    };
+  }
   const res = await fetch(`${BASE_URL}/api/mock-bee/sessions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(await authHeaders()) },
@@ -138,7 +162,7 @@ export async function createMockBeeRound(req: CreateRoundRequest): Promise<MockB
   if (res.status === 401) throw new UnauthorizedError();
   if (!res.ok) throw new Error("Failed to create mock bee round");
   const data = await res.json();
-  return data.session;
+  return data;
 }
 
 export async function getMockBeeSession(id: string): Promise<MockBeeSession> {
@@ -170,6 +194,24 @@ export async function timeoutMockBee(id: string): Promise<SubmitResponse> {
     body: "{}",
   });
   if (!res.ok) throw new Error("Failed to register timeout");
+  return res.json();
+}
+
+export async function endMockBeeSession(id: string): Promise<{ session: MockBeeSession }> {
+  if (USE_MOCK_FALLBACK) {
+    const state = MOCK_STORE.get(id);
+    if (!state) throw new Error("Unknown session");
+    state.session.status = "completed";
+    state.session.currentChallenge = null;
+    state.session.updatedAt = new Date().toISOString();
+    return { session: state.session };
+  }
+  const res = await fetch(`${BASE_URL}/api/mock-bee/sessions/${encodeURIComponent(id)}/end`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    body: "{}",
+  });
+  if (!res.ok) throw new Error("Failed to end mock bee session");
   return res.json();
 }
 

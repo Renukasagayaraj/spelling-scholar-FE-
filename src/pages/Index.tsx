@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Loader2, Send, ArrowRight, Volume2, Volume1, VolumeX, Sparkles } from "lucide-react";
 import confetti from "canvas-confetti";
@@ -26,7 +27,10 @@ import {
   endPracticeSession,
   fetchUserStatistics,
   fetchSessionAttempts,
+  fetchCustomLists,
+  fetchForeignOriginDetails,
 } from "@/lib/api";
+import { endMockBeeSession } from "@/lib/mockBeeApi";
 import { VoiceMic } from "@/components/VoiceMic";
 import type { VoiceRespondResult } from "@/lib/voiceApi";
 import type {
@@ -47,6 +51,8 @@ import { Header } from "@/components/Header";
 import { useAuth } from "@/hooks/use-auth";
 import { PaymentDialog } from "@/components/PaymentDialog";
 import { AuthDialog } from "@/components/AuthDialog";
+import { ActiveSessionConflictDialog } from "@/components/ActiveSessionConflictDialog";
+import { queueMockBeeResume, takePracticeResumeMode } from "@/lib/sessionResume";
 
 const DEFAULT_PROFILE = {
   childId: "c1",
@@ -143,6 +149,7 @@ const historyEntryFromAttempt = (att: DbWordAttempt): HistoryEntry => {
 };
 
 export default function Index() {
+  const navigate = useNavigate();
   const [theme, setTheme] = useState<ThemeKey>(() => {
     return (localStorage.getItem("spelling-coach-theme") as ThemeKey) || "default";
   });
@@ -206,6 +213,13 @@ export default function Index() {
   const [sessionWordCount, setSessionWordCount] = useState(0);
   const [sessionCorrectCount, setSessionCorrectCount] = useState(0);
   const [isRecovering, setIsRecovering] = useState(true);
+  const [pendingConflict, setPendingConflict] = useState<{
+    activeMode: string;
+    activeSessionId: string;
+    requestedMode: string;
+  } | null>(null);
+  const [conflictLoading, setConflictLoading] = useState(false);
+  const [conflictError, setConflictError] = useState<string | null>(null);
 
   const endSession = async () => {
     if (!activeSessionId || !sessionStartTime) return;
@@ -239,13 +253,97 @@ export default function Index() {
 
   const isStartingSession = useRef(false);
 
-  const startSession = async (mode: string) => {
-    if (isStartingSession.current) return;
+  const buildSessionRequest = (mode: string, forceCloseCurrent = false) => {
+    if (mode.startsWith("standard_level_")) {
+      return {
+        mode: "standard",
+        level: Number(mode.replace("standard_level_", "")),
+        forceCloseCurrent,
+      };
+    }
+
+    return {
+      mode,
+      forceCloseCurrent,
+    };
+  };
+
+  const prepareUiForMode = useCallback(
+    async (mode: string) => {
+      resetWordState();
+      setError(null);
+
+      if (mode.startsWith("standard_level_")) {
+        const lvl = Number(mode.replace("standard_level_", ""));
+        setPracticeMode("standard");
+        setActiveChannel("standard");
+        setCustomPracticeActive(false);
+        setForeignPracticeActive(false);
+        setSelectedCustomList(null);
+        setSelectedForeignOrigin(null);
+        setSelectedForeignOriginDetails(null);
+        setLevel(Number.isNaN(lvl) ? 0 : lvl);
+        return;
+      }
+
+      if (mode.startsWith("custom_list_")) {
+        const listId = mode.replace("custom_list_", "");
+        setPracticeMode("custom");
+        setActiveChannel("custom");
+        setCustomPracticeActive(true);
+        setForeignPracticeActive(false);
+        setSelectedForeignOrigin(null);
+        setSelectedForeignOriginDetails(null);
+
+        try {
+          const { lists } = await fetchCustomLists();
+          const matchedList = lists.find((list) => list.id === listId) ?? null;
+          setSelectedCustomList(matchedList);
+        } catch (err) {
+          console.error("Failed to prepare custom practice mode:", err);
+          setSelectedCustomList(null);
+        }
+        return;
+      }
+
+      if (mode.startsWith("foreign_origin_")) {
+        const origin = mode.replace("foreign_origin_", "");
+        setPracticeMode("foreignOrigin");
+        setActiveChannel("foreignOrigin");
+        setForeignPracticeActive(true);
+        setCustomPracticeActive(false);
+        setSelectedCustomList(null);
+
+        try {
+          const details = await fetchForeignOriginDetails(origin);
+          setSelectedForeignOrigin({
+            origin: details.origin,
+            wordCount: details.wordCount,
+          });
+          setSelectedForeignOriginDetails(details);
+        } catch (err) {
+          console.error("Failed to prepare foreign origin mode:", err);
+          setSelectedForeignOrigin({
+            origin,
+            wordCount: 0,
+          });
+          setSelectedForeignOriginDetails(null);
+        }
+      }
+    },
+    [],
+  );
+
+  const startSession = async (
+    mode: string,
+    options?: { forceCloseCurrent?: boolean },
+  ): Promise<boolean> => {
+    if (isStartingSession.current) return false;
     if (activeSessionId && activeSessionMode === mode) {
       if (!word && !loading) {
         loadWord(getParamsFromMode(mode));
       }
-      return;
+      return true;
     }
 
     isStartingSession.current = true;
@@ -272,23 +370,18 @@ export default function Index() {
         localStorage.setItem("active_sessions_map", JSON.stringify(map));
       }
 
-      const sessionRequest =
-        mode.startsWith("standard_level_")
-          ? {
-              mode: "standard",
-              level: Number(mode.replace("standard_level_", "")),
-              forceCloseCurrent: false,
-            }
-          : {
-              mode,
-              forceCloseCurrent: false,
-            };
-
-      const result = await startPracticeSession(sessionRequest);
+      const result = await startPracticeSession(
+        buildSessionRequest(mode, options?.forceCloseCurrent ?? false),
+      );
 
       if (result.action === "active_session_conflict") {
-        setError(`You already have an active session in ${result.activeMode}.`);
-        return;
+        setConflictError(null);
+        setPendingConflict({
+          activeMode: result.activeMode,
+          activeSessionId: result.activeSessionId,
+          requestedMode: mode,
+        });
+        return false;
       }
 
       const id = result.sessionId;
@@ -317,12 +410,92 @@ export default function Index() {
         resetWordState();
         loadWord(getParamsFromMode(mode));
       }
+      return true;
     } catch (err) {
       console.error("Failed to start/resume practice session:", err);
+      return false;
     } finally {
       isStartingSession.current = false;
     }
   };
+
+  const resumePracticeMode = useCallback(
+    async (mode: string) => {
+      await prepareUiForMode(mode);
+      await startSession(mode);
+    },
+    [prepareUiForMode],
+  );
+
+  const handleConflictResume = useCallback(async () => {
+    if (!pendingConflict) return;
+
+    setConflictLoading(true);
+    setConflictError(null);
+
+    try {
+      if (pendingConflict.activeMode === "mock_bee") {
+        queueMockBeeResume();
+        setPendingConflict(null);
+        navigate("/mock-bee");
+        return;
+      }
+
+      await resumePracticeMode(pendingConflict.activeMode);
+      setPendingConflict(null);
+    } catch (err) {
+      console.error("Failed to resume current session:", err);
+      setConflictError("Could not resume the current session. Please try again.");
+    } finally {
+      setConflictLoading(false);
+    }
+  }, [navigate, pendingConflict, resumePracticeMode]);
+
+  const handleConflictStartNew = useCallback(async () => {
+    if (!pendingConflict) return;
+
+    setConflictLoading(true);
+    setConflictError(null);
+
+    try {
+      const isLocalCurrentSession =
+        activeSessionId === pendingConflict.activeSessionId &&
+        activeSessionMode === pendingConflict.activeMode;
+
+      if (isLocalCurrentSession) {
+        await endSession();
+      } else if (pendingConflict.activeMode === "mock_bee") {
+        await endMockBeeSession(pendingConflict.activeSessionId);
+      }
+
+      await prepareUiForMode(pendingConflict.requestedMode);
+      const started = await startSession(pendingConflict.requestedMode, {
+        forceCloseCurrent: !isLocalCurrentSession && pendingConflict.activeMode !== "mock_bee",
+      });
+      if (started) {
+        setPendingConflict(null);
+      }
+    } catch (err) {
+      console.error("Failed to switch sessions:", err);
+      setConflictError("Could not close the current session and start the new one.");
+    } finally {
+      setConflictLoading(false);
+    }
+  }, [activeSessionId, activeSessionMode, pendingConflict, prepareUiForMode]);
+
+  const handleConflictCancel = useCallback(() => {
+    setConflictError(null);
+
+    if (
+      pendingConflict &&
+      activeSessionId === pendingConflict.activeSessionId &&
+      activeSessionMode === pendingConflict.activeMode
+    ) {
+      void resumePracticeMode(pendingConflict.activeMode);
+    }
+
+    setPendingConflict(null);
+  }, [activeSessionId, activeSessionMode, pendingConflict, resumePracticeMode]);
 
   // Recover active session on page reload/startup
   useEffect(() => {
@@ -415,6 +588,21 @@ export default function Index() {
       setIsRecovering(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (isRecovering || activeSessionId) return;
+    const pendingMode = takePracticeResumeMode();
+    if (!pendingMode) return;
+
+    void (async () => {
+      try {
+        await resumePracticeMode(pendingMode);
+      } catch (err) {
+        console.error("Failed to resume redirected practice session:", err);
+        setError("Could not resume the requested session.");
+      }
+    })();
+  }, [activeSessionId, isRecovering, resumePracticeMode]);
 
   // Sync active session info and history to localStorage for recovery
   useEffect(() => {
@@ -1251,6 +1439,16 @@ export default function Index() {
       <LevelUpFlash streak={rewards.milestoneHit} onDone={rewards.clearMilestone} />
       <PaymentDialog open={paymentOpen} onOpenChange={setPaymentOpen} />
       <AuthDialog open={authOpen} onOpenChange={setAuthOpen} />
+      <ActiveSessionConflictDialog
+        open={!!pendingConflict}
+        activeMode={pendingConflict?.activeMode ?? null}
+        requestedMode={pendingConflict?.requestedMode ?? null}
+        loading={conflictLoading}
+        error={conflictError}
+        onResume={handleConflictResume}
+        onStartNew={handleConflictStartNew}
+        onCancel={handleConflictCancel}
+      />
     </div>
   );
 }
