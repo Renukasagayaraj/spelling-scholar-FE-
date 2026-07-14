@@ -467,15 +467,16 @@ export interface PracticeSessionRecord {
   id: string;
   user_id: string;
   mode: string;
+  status?: "active" | "completed" | "abandoned";
   origin_language?: string | null;
   custom_list_id?: string | null;
   custom_list_name?: string | null;
   session_started_at: string;
-  session_ended_at?: string;
+  session_ended_at: string | null;
   total_words_attempted?: number;
   total_correct?: number;
   accuracy_percentage?: number;
-  duration_seconds?: number;
+  duration_seconds?: number | null;
   created_at: string;
 }
 
@@ -644,3 +645,15 @@ export async function fetchSessionAttempts(sessionId: string): Promise<DbWordAtt
   return data.attempts;
 }
 
+export async function fetchPracticeSession(sessionId: string): Promise<PracticeSessionRecord | null> {
+  if (USE_MOCK_FALLBACK) {
+    return null;
+  }
+  const res = await fetch(`${BASE_URL}/api/sessions/current?sessionId=${encodeURIComponent(sessionId)}`, {
+    headers: await authHeaders(),
+  });
+  if (res.status === 401) await handle401();
+  if (!res.ok) throw new Error("Failed to fetch practice session");
+  const data = await res.json();
+  return data.session;
+}

@@ -27,6 +27,7 @@ import {
   endPracticeSession,
   fetchUserStatistics,
   fetchSessionAttempts,
+  fetchPracticeSession,
   fetchCustomLists,
   fetchForeignOriginDetails,
 } from "@/lib/api";
@@ -43,6 +44,7 @@ import type {
   ForeignOriginDetail,
   NextWordParams,
   DbWordAttempt,
+  PracticeSessionRecord,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { type HistoryEntry } from "@/components/SessionHistoryPanel";
@@ -250,6 +252,71 @@ export default function Index() {
       setActiveSessionMode(null);
     }
   };
+
+  const clearRecoveredSessionState = useCallback((message?: string) => {
+    localStorage.removeItem("active_sessions_map");
+    localStorage.removeItem("active_session_recovery");
+    localStorage.removeItem("active_session_history");
+    localStorage.removeItem("active_session_history_index");
+
+    setActiveSessionId(null);
+    setActiveSessionMode(null);
+    setSessionStartTime(null);
+    setSessionWordCount(0);
+    setSessionCorrectCount(0);
+    setActiveChannel(null);
+    setLevel(0);
+    setWord(null);
+    setResult(null);
+    setHistory([]);
+    setActiveHistoryIndex(null);
+    setCustomPracticeActive(false);
+    setSelectedCustomList(null);
+    setForeignPracticeActive(false);
+    setSelectedForeignOrigin(null);
+    setSelectedForeignOriginDetails(null);
+    setAttempt("");
+    setDefOpen(false);
+    setExOpen(false);
+    setOrigOpen(false);
+    setPosOpen(false);
+    if (message) {
+      setError(message);
+    }
+  }, []);
+
+  const getRecoveredModeFromSession = useCallback(
+    (session: PracticeSessionRecord, fallbackMode?: string | null) => {
+      if (session.mode === "foreign_origin" && session.origin_language) {
+        return `foreign_origin_${session.origin_language}`;
+      }
+
+      if (session.mode === "custom" && session.custom_list_id) {
+        return `custom_list_${session.custom_list_id}`;
+      }
+
+      return fallbackMode || session.mode;
+    },
+    [],
+  );
+
+  const ensureSessionIsStillActive = useCallback(async () => {
+    if (!activeSessionId) return true;
+
+    try {
+      const session = await fetchPracticeSession(activeSessionId);
+      if (session?.status === "active") {
+        return true;
+      }
+    } catch (err) {
+      console.error("Failed to verify session status:", err);
+      setError("Could not verify the current session. Please refresh and try again.");
+      return false;
+    }
+
+    clearRecoveredSessionState("This session was closed in another tab.");
+    return false;
+  }, [activeSessionId, clearRecoveredSessionState]);
 
   const isStartingSession = useRef(false);
 
@@ -518,94 +585,63 @@ export default function Index() {
   // Recover active session on page reload/startup
   useEffect(() => {
     const saved = localStorage.getItem("active_session_recovery");
-    console.log("🎉 saved", saved);
     if (saved) {
-      try {
+      void (async () => {
+        try {
         const {
           activeSessionId: id,
-          activeSessionMode: mode,
+          activeSessionMode: savedMode,
           sessionStartTime: start,
-          sessionWordCount: words,
-          sessionCorrectCount: corrects,
-          activeChannel: channel,
-          practiceMode: savedPracticeMode,
-          level: lvl,
-          customPracticeActive: customActive,
-          selectedCustomList: customList,
-          foreignPracticeActive: foreignActive,
-          selectedForeignOrigin: foreignOrigin,
         } = JSON.parse(saved);
 
         if (id && start) {
-          setActiveSessionId(id);
-          setActiveSessionMode(mode || null);
-          setSessionStartTime(start);
-          setSessionWordCount(words || 0);
-          setSessionCorrectCount(corrects || 0);
-          setActiveChannel(channel);
-          setPracticeMode(savedPracticeMode || "standard");
-          setLevel(lvl || 1);
-          setCustomPracticeActive(!!customActive);
-          setSelectedCustomList(customList || null);
-          setForeignPracticeActive(!!foreignActive);
-          setSelectedForeignOrigin(foreignOrigin || null);
-
-          // Restore history
-          const savedHistory = localStorage.getItem("active_session_history");
-          const savedIndex = localStorage.getItem("active_session_history_index");
-          if (savedHistory) {
-            const parsedHistory = JSON.parse(savedHistory);
-            setHistory(parsedHistory);
-            let restored = false;
-            if (savedIndex !== null) {
-              const idx = JSON.parse(savedIndex);
-              setActiveHistoryIndex(idx);
-              const entry = parsedHistory[idx];
-              if (entry) {
-                setWord(entry.word);
-                setAttempt(entry.attempt);
-                setResult(entry.result);
-                restored = true;
-              }
-            }
-            if (!restored && mode) {
-              loadWord(getParamsFromMode(mode));
-            }
+          const session = await fetchPracticeSession(id);
+          if (!session || session.status !== "active") {
+            clearRecoveredSessionState("This session was closed in another tab.");
             setIsRecovering(false);
-          } else {
-            // Fallback: Fetch attempts from DB if local storage history is missing
-            fetchSessionAttempts(id)
-              .then((attempts) => {
-                if (attempts && attempts.length > 0) {
-                  const historyEntries = attempts.map(historyEntryFromAttempt);
-                  setHistory(historyEntries);
-                  setActiveHistoryIndex(historyEntries.length - 1);
-                  const lastEntry = historyEntries[historyEntries.length - 1];
-                  setWord(lastEntry.word);
-                  setAttempt(lastEntry.attempt);
-                  setResult(lastEntry.result);
-                } else if (mode) {
-                  loadWord(getParamsFromMode(mode));
-                }
-              })
-              .catch((err) => {
-                console.error("Failed to recover session attempts from DB:", err);
-              })
-              .finally(() => {
-                setIsRecovering(false);
-              });
+            return;
           }
+
+          const restoredMode = getRecoveredModeFromSession(session, savedMode);
+          await prepareUiForMode(restoredMode);
+
+          setActiveSessionId(id);
+          setActiveSessionMode(restoredMode || null);
+          setSessionStartTime(start);
+          const attempts = await fetchSessionAttempts(id);
+          if (attempts && attempts.length > 0) {
+            const historyEntries = attempts.map(historyEntryFromAttempt);
+            setHistory(historyEntries);
+            setSessionWordCount(historyEntries.length);
+            setSessionCorrectCount(
+              historyEntries.filter((entry) => entry.result?.correctness?.isCorrect).length,
+            );
+            setActiveHistoryIndex(historyEntries.length - 1);
+            const lastEntry = historyEntries[historyEntries.length - 1];
+            setWord(lastEntry.word);
+            setAttempt(lastEntry.attempt);
+            setResult(lastEntry.result);
+          } else {
+            setSessionWordCount(0);
+            setSessionCorrectCount(0);
+            setHistory([]);
+            setActiveHistoryIndex(null);
+            loadWord(getParamsFromMode(restoredMode));
+          }
+          setIsRecovering(false);
         } else {
           setIsRecovering(false);
         }
-      } catch (e) {
-        console.error("Failed to recover active session:", e);
-        setIsRecovering(false);
-      }
+        } catch (e) {
+          console.error("Failed to recover active session:", e);
+          setError("Could not restore the previous session. Please start again.");
+          setIsRecovering(false);
+        }
+      })();
     } else {
       setIsRecovering(false);
     }
-  }, []);
+  }, [clearRecoveredSessionState, getRecoveredModeFromSession, prepareUiForMode]);
 
   useEffect(() => {
     if (isRecovering || activeSessionId) return;
@@ -926,6 +962,10 @@ export default function Index() {
     setSubmitting(true);
     setError(null);
     try {
+      if (!(await ensureSessionIsStillActive())) {
+        return;
+      }
+
       const childProfile = profile ? {
         childId: profile.child_id || "c1",
         age: profile.age || 10,
@@ -1013,7 +1053,11 @@ export default function Index() {
     }
   };
 
-  const handleNextWord = () => {
+  const handleNextWord = async () => {
+    if (!(await ensureSessionIsStillActive())) {
+      return;
+    }
+
     setActiveHistoryIndex(null);
     if (practiceMode === "custom" && customPracticeActive && selectedCustomList) {
       loadWord({ customListId: selectedCustomList.id });
@@ -1421,7 +1465,7 @@ export default function Index() {
                   </div>
                   <CoachingResult result={result} level={level} />
                   <button
-                    onClick={handleNextWord}
+                    onClick={() => void handleNextWord()}
                     className="w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm hover:shadow-md"
                   >
                     <ArrowRight className="h-4 w-4" /> Next Word
