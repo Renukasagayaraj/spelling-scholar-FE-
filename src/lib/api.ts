@@ -467,6 +467,9 @@ export interface PracticeSessionRecord {
   id: string;
   user_id: string;
   mode: string;
+  origin_language?: string | null;
+  custom_list_id?: string | null;
+  custom_list_name?: string | null;
   session_started_at: string;
   session_ended_at?: string;
   total_words_attempted?: number;
@@ -511,6 +514,9 @@ export type StartPracticeSessionResult =
 export interface StartPracticeSessionRequest {
   mode: string;
   level?: number;
+  originLanguage?: string;
+  customListId?: string;
+  customListName?: string;
   forceCloseCurrent?: boolean;
 }
 
@@ -585,6 +591,8 @@ export async function endPracticeSession(body: EndSessionBody, keepAlive?: boole
 export interface DbUserStats {
   mode: string;
   level: number | null;
+  origin_language?: string | null;
+  custom_list_id?: string | null;
   current_streak: number;
   best_streak: number;
   total_attempts: number;
@@ -635,5 +643,4 @@ export async function fetchSessionAttempts(sessionId: string): Promise<DbWordAtt
   const data = await res.json();
   return data.attempts;
 }
-
 

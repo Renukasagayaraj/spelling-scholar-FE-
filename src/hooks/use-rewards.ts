@@ -30,6 +30,8 @@ const MILESTONES = [3, 5, 10, 15, 20];
 type AllStats = Record<string, LevelStats>;
 type RewardStatsRow = {
   mode: string;
+  origin_language?: string | null;
+  custom_list_id?: string | null;
   current_streak?: number | null;
   best_streak?: number | null;
   correct_attempts?: number | null;
@@ -66,10 +68,14 @@ function getRewardsKey(mode: string, level?: number): string {
   }
 
   if (mode.startsWith("custom_list_") || mode === "custom") {
-    return "custom";
+    return mode.startsWith("custom_list_") ? mode : "custom";
   }
 
   if (mode.startsWith("foreign_origin_") || mode === "foreign_origin" || mode === "foreignOrigin") {
+    if (mode.startsWith("foreign_origin_")) {
+      return mode;
+    }
+
     return "foreign_origin";
   }
 
@@ -78,6 +84,18 @@ function getRewardsKey(mode: string, level?: number): string {
   }
 
   return mode;
+}
+
+function getRewardsKeyFromDbRow(row: RewardStatsRow): string {
+  if (row.mode === "foreign_origin" && row.origin_language) {
+    return `foreign_origin_${row.origin_language}`;
+  }
+
+  if (row.mode === "custom" && row.custom_list_id) {
+    return `custom_list_${row.custom_list_id}`;
+  }
+
+  return row.mode;
 }
 
 function loadAll(): AllStats {
@@ -184,7 +202,7 @@ export function useRewards() {
     setAll(() => {
       const next: AllStats = {};
       dbStatsList.forEach((row) => {
-        const key = row.mode;
+        const key = getRewardsKeyFromDbRow(row);
         next[key] = {
           streak: row.current_streak || 0,
           bestStreak: row.best_streak || 0,

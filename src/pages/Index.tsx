@@ -262,6 +262,24 @@ export default function Index() {
       };
     }
 
+    if (mode.startsWith("custom_list_")) {
+      const customListId = mode.replace("custom_list_", "");
+      return {
+        mode: "custom",
+        customListId,
+        customListName: selectedCustomList?.id === customListId ? selectedCustomList.name : undefined,
+        forceCloseCurrent,
+      };
+    }
+
+    if (mode.startsWith("foreign_origin_")) {
+      return {
+        mode: "foreign_origin",
+        originLanguage: mode.replace("foreign_origin_", ""),
+        forceCloseCurrent,
+      };
+    }
+
     return {
       mode,
       forceCloseCurrent,
@@ -948,7 +966,7 @@ export default function Index() {
           childAttempt: attempt.trim().toLowerCase(),
           isCorrect,
           level: lvl,
-          mode: practiceMode,
+          mode: activeSessionMode || practiceMode,
           definitionViewed: supportsViewed.current.definitionViewed,
           exampleViewed: supportsViewed.current.exampleViewed,
           originViewed: supportsViewed.current.originViewed,
@@ -963,7 +981,7 @@ export default function Index() {
 
       if (isCorrect) {
         if (lvl !== 3) playCheer();
-        rewards.recordCorrect(practiceMode, lvl);
+        rewards.recordCorrect(activeSessionMode || practiceMode, lvl);
         // Confetti only for Level 1 (younger kids). L2/L3 get streaks + fanfare instead.
         if (lvl === 1) {
           const fire = (origin: { x: number; y: number }) =>
@@ -981,7 +999,7 @@ export default function Index() {
           setTimeout(() => fire({ x: 0.5, y: 0.5 }), 200);
         }
       } else {
-        rewards.recordIncorrect(practiceMode, lvl);
+        rewards.recordIncorrect(activeSessionMode || practiceMode, lvl);
       }
       setSession((s) => ({
         ...s,
@@ -1244,7 +1262,7 @@ export default function Index() {
           >
             {/* Rewards strip — all levels */}
             <RewardsStrip
-              stats={rewards.getStats(practiceMode, effectiveLevel())}
+              stats={rewards.getStats(activeSessionMode || practiceMode, effectiveLevel())}
               newBadge={rewards.newBadge}
               onClearNewBadge={rewards.clearNewBadge}
             />
