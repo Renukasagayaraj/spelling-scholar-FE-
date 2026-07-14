@@ -28,15 +28,64 @@ export const BADGES: BadgeDef[] = [
 const MILESTONES = [3, 5, 10, 15, 20];
 
 type AllStats = Record<string, LevelStats>;
+type RewardStatsRow = {
+  mode: string;
+  current_streak?: number | null;
+  best_streak?: number | null;
+  correct_attempts?: number | null;
+  badges?: string[] | null;
+};
+type AudioWindow = Window & {
+  AudioContext?: typeof AudioContext;
+  webkitAudioContext?: typeof AudioContext;
+};
 
 const empty = (): LevelStats => ({ streak: 0, bestStreak: 0, totalCorrect: 0, badges: [] });
+
+function normalizeStandardLevel(level?: number): 1 | 2 | 3 {
+  if (level == null) {
+    throw new Error("level is required when mode is standard");
+  }
+
+  if (level !== 1 && level !== 2 && level !== 3) {
+    throw new Error("level must be 1, 2, or 3 when mode is standard");
+  }
+
+  return level;
+}
+
+function getRewardsKey(mode: string, level?: number): string {
+  if (mode === "standard") {
+    return `standard_level_${normalizeStandardLevel(level)}`;
+  }
+
+  if (mode.startsWith("standard_level_")) {
+    const parsedLevel = Number(mode.replace("standard_level_", ""));
+    normalizeStandardLevel(parsedLevel);
+    return mode;
+  }
+
+  if (mode.startsWith("custom_list_") || mode === "custom") {
+    return "custom";
+  }
+
+  if (mode.startsWith("foreign_origin_") || mode === "foreign_origin" || mode === "foreignOrigin") {
+    return "foreign_origin";
+  }
+
+  if (mode === "mock_bee" || mode === "mock-bee") {
+    return "mock_bee";
+  }
+
+  return mode;
+}
 
 function loadAll(): AllStats {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
     return JSON.parse(raw);
-  } catch {
+  } catch (_error) {
     return {};
   }
 }
@@ -48,23 +97,29 @@ export function useRewards() {
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(all)); } catch { }
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+    } catch (_error) {
+      // Ignore storage write failures so rewards never block practice.
+    }
   }, [all]);
 
   const getStats = useCallback((mode: string, level?: number): LevelStats => {
-    let key = mode;
-    if (mode === "standard") {
-      key = `standard_level_${level ?? 1}`;
-    } else if (mode === "foreignOrigin") {
-      key = "foreign_origin";
-    }
+    const key = getRewardsKey(mode, level);
     return all[key] ?? empty();
   }, [all]);
 
   const playFanfare = useCallback(() => {
     try {
       if (!audioCtxRef.current) {
-        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const audioWindow = window as AudioWindow;
+        const AudioContextCtor = audioWindow.AudioContext || audioWindow.webkitAudioContext;
+
+        if (!AudioContextCtor) {
+          return;
+        }
+
+        audioCtxRef.current = new AudioContextCtor();
       }
       const ctx = audioCtxRef.current;
       const now = ctx.currentTime;
@@ -83,16 +138,13 @@ export function useRewards() {
         osc.start(start);
         osc.stop(start + 0.5);
       });
-    } catch { }
+    } catch (_error) {
+      // Ignore audio failures so streak tracking still works.
+    }
   }, []);
 
   const recordCorrect = useCallback((mode: string, level?: number) => {
-    let key = mode;
-    if (mode === "standard") {
-      key = `standard_level_${level ?? 1}`;
-    } else if (mode === "foreignOrigin") {
-      key = "foreign_origin";
-    }
+    const key = getRewardsKey(mode, level);
     setAll((prev) => {
       const cur = prev[key] ?? empty();
       const streak = cur.streak + 1;
@@ -118,12 +170,7 @@ export function useRewards() {
   }, [playFanfare]);
 
   const recordIncorrect = useCallback((mode: string, level?: number) => {
-    let key = mode;
-    if (mode === "standard") {
-      key = `standard_level_${level ?? 1}`;
-    } else if (mode === "foreignOrigin") {
-      key = "foreign_origin";
-    }
+    const key = getRewardsKey(mode, level);
     setAll((prev) => {
       const cur = prev[key] ?? empty();
       return { ...prev, [key]: { ...cur, streak: 0 } };
@@ -133,7 +180,7 @@ export function useRewards() {
   const clearNewBadge = useCallback(() => setNewBadge(null), []);
   const clearMilestone = useCallback(() => setMilestoneHit(null), []);
 
-  const syncWithDatabase = useCallback((dbStatsList: any[]) => {
+  const syncWithDatabase = useCallback((dbStatsList: RewardStatsRow[]) => {
     setAll(() => {
       const next: AllStats = {};
       dbStatsList.forEach((row) => {
