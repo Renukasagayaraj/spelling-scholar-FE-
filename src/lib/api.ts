@@ -166,7 +166,6 @@ export interface ImportCustomListResponse {
   list: CustomListSummary;
   importedCount: number;
   skippedExistingCount: number;
-  words: WordData[];
 }
 
 export interface CustomListsResponse {
