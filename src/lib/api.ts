@@ -344,17 +344,12 @@ export interface SubscriptionStatus {
   subscribed: boolean;
   currentPeriodEnd?: number;
   cancelAtPeriodEnd?: boolean;
+  priceAmount?: number | null;
+  priceCurrency?: string | null;
+  billingInterval?: string | null;
 }
 
 export async function fetchSubscriptionStatus(): Promise<SubscriptionStatus> {
-  if (USE_MOCK_FALLBACK) {
-    const isSub = localStorage.getItem("mock_subscribed") === "true";
-    return {
-      subscribed: isSub,
-      currentPeriodEnd: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60, // 30 days from now
-      cancelAtPeriodEnd: false,
-    };
-  }
   const res = await fetch(`${BASE_URL}/api/stripe/subscription-status`, {
     headers: await authHeaders(),
   });
@@ -364,10 +359,6 @@ export async function fetchSubscriptionStatus(): Promise<SubscriptionStatus> {
 }
 
 export async function createStripeCheckoutSession(): Promise<{ url: string }> {
-  if (USE_MOCK_FALLBACK) {
-    localStorage.setItem("mock_subscribed", "true");
-    return { url: `${window.location.origin}/?payment_success=true` };
-  }
   const res = await fetch(`${BASE_URL}/api/stripe/create-checkout-session`, {
     method: "POST",
     headers: {
@@ -384,9 +375,6 @@ export async function createStripeCheckoutSession(): Promise<{ url: string }> {
 }
 
 export async function createStripePortalSession(): Promise<{ url: string }> {
-  if (USE_MOCK_FALLBACK) {
-    return { url: window.location.origin };
-  }
   const res = await fetch(`${BASE_URL}/api/stripe/create-portal-session`, {
     method: "POST",
     headers: {
@@ -601,9 +589,6 @@ export interface DbUserStats {
 }
 
 export async function fetchUserStatistics(): Promise<DbUserStats[]> {
-  if (USE_MOCK_FALLBACK) {
-    return [];
-  }
   const res = await fetch(`${BASE_URL}/api/users/stats`, {
     headers: await authHeaders(),
   });

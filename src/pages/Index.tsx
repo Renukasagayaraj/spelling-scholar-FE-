@@ -56,6 +56,8 @@ import { AuthDialog } from "@/components/AuthDialog";
 import { ActiveSessionConflictDialog } from "@/components/ActiveSessionConflictDialog";
 import { queueMockBeeResume, takePracticeResumeMode } from "@/lib/sessionResume";
 
+const STANDARD_FREE_WORD_LIMIT = 30;
+
 const DEFAULT_PROFILE = {
   childId: "c1",
   age: 10,
@@ -162,6 +164,7 @@ export default function Index() {
   const hasInitializedRef = useRef(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [standardWordsUsed, setStandardWordsUsed] = useState(0);
   const [level, setLevel] = useState(0);
   const [word, setWord] = useState<WordData | null>(null);
   const [attempt, setAttempt] = useState("");
@@ -778,11 +781,18 @@ export default function Index() {
         .then((stats) => {
           if (stats) {
             rewards.syncWithDatabase(stats);
+            setStandardWordsUsed(
+              stats
+                .filter((stat) => stat.mode === "standard" || stat.mode.startsWith("standard_level_"))
+                .reduce((total, stat) => total + stat.total_attempts, 0),
+            );
           }
         })
         .catch((err) => {
           console.error("Failed to sync rewards statistics with backend:", err);
         });
+    } else {
+      setStandardWordsUsed(0);
     }
   }, [user, rewards.syncWithDatabase]);
 
@@ -862,7 +872,22 @@ export default function Index() {
     }
   }, []);
 
+  const openUpgradeFlow = () => {
+    if (!user) {
+      setAuthOpen(true);
+      return;
+    }
+    setPaymentOpen(true);
+  };
+
+  const standardLimitReached =
+    practiceMode === "standard" && !subscribed && standardWordsUsed >= STANDARD_FREE_WORD_LIMIT;
+
   const handleLevelChange = (lvl: number) => {
+    if (standardLimitReached) {
+      openUpgradeFlow();
+      return;
+    }
     setLevel(lvl);
     startSession(`standard_level_${lvl}`);
   };
@@ -959,6 +984,10 @@ export default function Index() {
 
   const handleSubmit = async () => {
     if (!word || !attempt.trim()) return;
+    if (standardLimitReached) {
+      openUpgradeFlow();
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -993,6 +1022,10 @@ export default function Index() {
         return next;
       });
       const isCorrect = !!res.correctness?.isCorrect;
+
+      if (practiceMode === "standard" && !subscribed) {
+        setStandardWordsUsed((count) => count + 1);
+      }
 
       if (activeSessionId) {
         setSessionWordCount((c) => c + 1);
@@ -1054,6 +1087,10 @@ export default function Index() {
   };
 
   const handleNextWord = async () => {
+    if (standardLimitReached) {
+      openUpgradeFlow();
+      return;
+    }
     if (!(await ensureSessionIsStillActive())) {
       return;
     }
@@ -1269,6 +1306,11 @@ export default function Index() {
               </div>
             </div>
             <LevelSelector selected={level} onSelect={handleLevelChange} />
+            {!subscribed && (
+              <p className="text-center text-xs text-muted-foreground">
+                {Math.max(0, STANDARD_FREE_WORD_LIMIT - standardWordsUsed)} of {STANDARD_FREE_WORD_LIMIT} free words remaining
+              </p>
+            )}
           </motion.div>
         )}
 

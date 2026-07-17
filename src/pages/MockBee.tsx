@@ -39,6 +39,8 @@ import {
 import { CoachingResult } from "@/components/CoachingResult";
 import beePng from "@/assets/bee.png";
 import { ActiveSessionConflictDialog } from "@/components/ActiveSessionConflictDialog";
+import { AuthDialog } from "@/components/AuthDialog";
+import { PaymentDialog } from "@/components/PaymentDialog";
 import { queuePracticeResumeMode, takeMockBeeResume } from "@/lib/sessionResume";
 
 const DEFAULT_PROFILE = { childId: "c1", age: 10, grade: "5", spellingLevel: "level_2" };
@@ -53,7 +55,9 @@ const LEVEL_META: Record<MockBeeLevel, { label: string; subtitle: string; second
 
 export default function MockBee() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, subscribed } = useAuth();
+  const [authOpen, setAuthOpen] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
 
   // Setup state
   const [stage, setStage] = useState<Stage>("setup");
@@ -158,6 +162,14 @@ export default function MockBee() {
   const startRound = async (forceCloseCurrent = false): Promise<boolean> => {
     setSetupError(null);
     setRoundError(null);
+    if (!user) {
+      setAuthOpen(true);
+      return false;
+    }
+    if (!subscribed) {
+      setPaymentOpen(true);
+      return false;
+    }
     if (wordSource === "custom_list" && !customListId) {
       setSetupError("Pick a custom list to continue.");
       return false;
@@ -493,6 +505,8 @@ export default function MockBee() {
         onStartNew={handleConflictStartNew}
         onCancel={handleConflictCancel}
       />
+      <PaymentDialog open={paymentOpen} onOpenChange={setPaymentOpen} />
+      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} />
     </div>
   );
 }

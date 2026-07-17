@@ -27,6 +27,9 @@ export default function Profile() {
         subscribed,
         currentPeriodEnd,
         cancelAtPeriodEnd,
+        priceAmount,
+        priceCurrency,
+        billingInterval,
         refreshSubscription,
         signOut,
         profile,
@@ -142,6 +145,15 @@ export default function Profile() {
             month: "long",
             day: "numeric",
         });
+    };
+
+    const formatSubscriptionPrice = () => {
+        if (priceAmount == null || !priceCurrency) return "View price in Stripe";
+        const amount = new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: priceCurrency.toUpperCase(),
+        }).format(priceAmount / 100);
+        return `${amount} / ${billingInterval || "month"}`;
     };
 
     if (loading) {
@@ -407,7 +419,7 @@ export default function Profile() {
                                             <div className="space-y-1">
                                                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Price</span>
                                                 <span className="text-sm font-bold text-foreground">
-                                                    $5.00 / month
+                                                    {formatSubscriptionPrice()}
                                                 </span>
                                             </div>
                                             {currentPeriodEnd && (
