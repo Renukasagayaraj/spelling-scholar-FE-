@@ -114,7 +114,7 @@ export function ChannelsDashboard({ onSelectChannel }: ChannelsDashboardProps) {
       Icon: BarChart3,
       bgClass: "bg-[hsl(var(--channel-blue))]",
       iconColorClass: "text-info",
-      onClick: () => {},
+      onClick: () => navigate("/reports"),
     },
   ];
 

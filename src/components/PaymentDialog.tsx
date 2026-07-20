@@ -36,7 +36,7 @@ export function PaymentDialog({ open, onOpenChange }: PaymentDialogProps) {
     };
 
     const premiumFeatures = [
-        { title: "Unlimited Standard Practice", desc: "Keep practicing after your first 30 free words" },
+        { title: "Everything in Free", desc: "Access standard levels and smart hints" },
         { title: "Custom Word Lists", desc: "Practice any spelling words from CSV or text files" },
         { title: "Language Origins Practice", desc: "Master loanwords from German, French, Latin, and more" },
         { title: "Mock Bee Simulations", desc: "Experience timed spelling bees with competitive words" },

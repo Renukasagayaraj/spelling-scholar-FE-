@@ -40,7 +40,13 @@ export function RewardsStrip({ stats, newBadge, onClearNewBadge }: RewardsStripP
 
         {/* Badges */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          {BADGES.map((b) => {
+          {[...BADGES]
+            .sort((a, b) => {
+              const ae = stats.badges.includes(a.id) ? 0 : 1;
+              const be = stats.badges.includes(b.id) ? 0 : 1;
+              return ae - be;
+            })
+            .map((b) => {
             const earned = stats.badges.includes(b.id);
             return (
               <div

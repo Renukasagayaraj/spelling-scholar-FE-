@@ -87,7 +87,7 @@ function buildLinesForEntry(entry: HistoryEntry, idx: number): Line[] {
     const miss = result.missAnalysis;
     if (miss?.summary) lines.push(...labelLine("Miss analysis", miss.summary));
     if (miss?.primaryErrorFocus) lines.push(...labelLine("Primary focus", miss.primaryErrorFocus));
-    if (miss?.errorTypes?.length) lines.push(...labelLine("Error types", miss.errorTypes.join(", ")));
+    
     if (miss && "likelyWrongWordInterpretation" in miss) {
       lines.push(...labelLine("Wrong word interpretation", miss.likelyWrongWordInterpretation ? "Yes" : "No"));
     }

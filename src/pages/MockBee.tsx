@@ -398,7 +398,7 @@ export default function MockBee() {
             className="flex items-center gap-2 rounded-lg px-1.5 py-1 -ml-1.5 hover:bg-primary/10 transition-colors"
           >
             <img src={beePng} alt="Spelling bee mascot" className="h-14 w-auto mt-1" />
-            <span className="text-lg font-display tracking-tight text-foreground font-serif font-semibold">
+            <span className="text-lg font-display font-semibold tracking-tight text-foreground">
               AI Spelling Coach
             </span>
           </button>

@@ -2,7 +2,7 @@
 // without the API server running). These let you exercise the full UI —
 // "Hear the Word", coaching feedback sections, etc. — without OpenAI access.
 
-import type { CoachingRequest, CoachingResponse, WordData, NextWordParams } from "./api";
+import type { CoachingRequest, CoachingResponse, WordData, NextWordParams, MorphemeGloss } from "./api";
 
 const WORDS_BY_LEVEL: Record<number, WordData[]> = {
   1: [
@@ -16,6 +16,29 @@ const WORDS_BY_LEVEL: Record<number, WordData[]> = {
   3: [
     { word: "onomatopoeia", level: "3", gradeBand: "6-8", difficulty: "hard", origin: "Greek 'onomatopoiia', meaning word-making.", definition: "A word that imitates the sound it represents, like 'buzz' or 'sizzle'.", exampleSentence: "'Bang!' is a classic example of onomatopoeia.", partOfSpeech: "noun", pronunciation: "on-uh-mat-uh-PEE-uh", patterns: ["Greek poeia"] },
     { word: "conscientious", level: "3", gradeBand: "6-8", difficulty: "hard", origin: "Latin 'conscientia', meaning awareness.", definition: "Careful and thorough; guided by conscience.", exampleSentence: "She is a conscientious student who checks her work.", partOfSpeech: "adjective", pronunciation: "kon-shee-EN-shuhs", patterns: ["sci = sh", "-tious"] },
+  ],
+};
+
+const MORPHEME_GLOSSES: Record<string, MorphemeGloss[]> = {
+  rhythm: [
+    { part: "rhyth", role: "root", meaning: "measured flow", origin: "Greek" },
+    { part: "-m", role: "suffix", meaning: "condition or result", origin: "Greek" },
+  ],
+  necessary: [
+    { part: "ne-", role: "prefix", meaning: "not", origin: "Latin" },
+    { part: "cess", role: "root", meaning: "go", origin: "Latin" },
+    { part: "-ary", role: "suffix", meaning: "relating to", origin: "Latin" },
+  ],
+  onomatopoeia: [
+    { part: "onoma", role: "root", meaning: "name", origin: "Greek" },
+    { part: "poie", role: "root", meaning: "make", origin: "Greek" },
+    { part: "-ia", role: "suffix", meaning: "condition", origin: "Greek" },
+  ],
+  conscientious: [
+    { part: "con-", role: "prefix", meaning: "together", origin: "Latin" },
+    { part: "sci", role: "root", meaning: "know", origin: "Latin" },
+    { part: "-ent", role: "suffix", meaning: "being", origin: "Latin" },
+    { part: "-ious", role: "suffix", meaning: "full of", origin: "Latin" },
   ],
 };
 
@@ -48,7 +71,11 @@ export function mockCoaching(req: CoachingRequest): CoachingResponse {
       summary: isCorrect
         ? "Spelled perfectly on the first try."
         : `You wrote "${attempt}" but the word is "${target}". The middle letters tripped you up.`,
-      errorTypes: isCorrect ? [] : ["vowel substitution", "missing letter"],
+      primaryErrorType: isCorrect ? null : "vowel_confusion",
+      secondaryErrorTypes: isCorrect ? [] : ["missing_letter"],
+      errorTypeEvidence: isCorrect
+        ? {}
+        : { vowel_confusion: `wrote "${attempt}" instead of "${target}"`, missing_letter: "dropped a middle letter" },
       primaryErrorFocus: isCorrect ? "" : "Listen for every syllable before writing.",
       likelyWrongWordInterpretation: false,
       usedMeaningDisambiguationWell: true,
@@ -68,6 +95,7 @@ export function mockCoaching(req: CoachingRequest): CoachingResponse {
         morphologyFocus: "Look for prefixes, roots, and suffixes you already know.",
         originLabels: ["Latin", "Greek"],
         morphologyLabels: ["root", "suffix"],
+        morphemeGlosses: MORPHEME_GLOSSES[target],
       },
     },
     errorRelevance: {

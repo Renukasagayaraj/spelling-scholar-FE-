@@ -11,10 +11,12 @@ import { ConfidenceBar } from "./ConfidenceBar";
 import { TeachingCard, ConceptTeachingContent } from "./TeachingCard";
 import { BooleanStatusRow } from "./BooleanStatusRow";
 import { cn } from "@/lib/utils";
+import { friendlyErrorType } from "@/lib/errorTypeLabels";
 
 interface CoachingResultProps {
   result: CoachingResponse;
   level?: number;
+  targetWord?: string;
 }
 
 function Section({ icon: Icon, title, children, className }: { icon: React.ElementType; title: string; children: React.ReactNode; className?: string }) {
@@ -40,7 +42,7 @@ const relevanceBadgeStyle: Record<string, string> = {
   unclear: "bg-muted text-muted-foreground",
 };
 
-export function CoachingResult({ result, level }: CoachingResultProps) {
+export function CoachingResult({ result, level, targetWord }: CoachingResultProps) {
   const isLevel1 = level === 1;
   const { correctness, missAnalysis, wordTeaching, errorRelevance, teachingDecision, coachingText, wordBreakdown, conceptLabels, nextStep } = result;
   const isCorrect = correctness.isCorrect;
@@ -72,28 +74,6 @@ export function CoachingResult({ result, level }: CoachingResultProps) {
               <MatchedPatternChips patterns={wordBreakdown.matchedPatterns} title="Matched Patterns" />
             </div>
           )}
-        </Section>
-      )}
-
-      {/* What Happened */}
-      {!isLevel1 && !isCorrect && missAnalysis?.summary && (
-        <Section icon={XCircle} title="What Happened">
-          <p>{missAnalysis.summary}</p>
-          {missAnalysis.primaryErrorFocus && (
-            <p className="text-xs mt-1.5"><span className="font-semibold text-primary">Focus:</span> {missAnalysis.primaryErrorFocus}</p>
-          )}
-          {missAnalysis.errorTypes?.length > 0 && (
-            <div className="mt-2">
-              <LabelChips labels={missAnalysis.errorTypes} variant="warm" />
-            </div>
-          )}
-          <BooleanStatusRow
-            className="mt-2.5"
-            items={[
-              { label: "Wrong word interpretation", value: !!missAnalysis.likelyWrongWordInterpretation },
-              { label: "Used meaning disambiguation", value: !!missAnalysis.usedMeaningDisambiguationWell },
-            ]}
-          />
         </Section>
       )}
 
@@ -136,11 +116,63 @@ export function CoachingResult({ result, level }: CoachingResultProps) {
               })()}
             </TeachingCard>
             <TeachingCard title="Concept Teaching" icon={<BookText className="h-4 w-4 text-primary" />}>
-              <ConceptTeachingContent data={wordTeaching.conceptTeaching} />
+              <ConceptTeachingContent data={wordTeaching.conceptTeaching} targetWord={targetWord} />
             </TeachingCard>
           </div>
         </motion.div>
       )}
+
+      {/* Miss Analysis (L2/L3 only, incorrect only) */}
+      {!isLevel1 && !isCorrect && missAnalysis?.summary && (() => {
+        const booleanItems = [
+          missAnalysis.likelyWrongWordInterpretation && { label: "Wrong word interpretation", value: true },
+          missAnalysis.usedMeaningDisambiguationWell && { label: "Used meaning disambiguation", value: true },
+        ].filter(Boolean) as { label: string; value: boolean }[];
+        return (
+        <Section icon={XCircle} title="Miss Analysis">
+          <p>{missAnalysis.summary}</p>
+          {missAnalysis.primaryErrorFocus && (
+            <p className="text-xs mt-1.5"><span className="font-semibold text-primary">Focus:</span> {missAnalysis.primaryErrorFocus}</p>
+          )}
+          {missAnalysis.primaryErrorType && (
+            <div className="mt-2.5">
+              <p className="text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">Primary error</p>
+              <LabelChips labels={[friendlyErrorType(missAnalysis.primaryErrorType)]} variant="warm" />
+              {missAnalysis.errorTypeEvidence?.[missAnalysis.primaryErrorType] && (
+                <p className="text-xs text-muted-foreground mt-1.5 italic">
+                  {missAnalysis.errorTypeEvidence[missAnalysis.primaryErrorType]}
+                </p>
+              )}
+            </div>
+          )}
+          {missAnalysis.secondaryErrorTypes?.length > 0 && (
+            <div className="mt-2.5">
+              <LabelChips
+                labels={missAnalysis.secondaryErrorTypes.map(friendlyErrorType)}
+                variant="default"
+                title="Also noticed"
+              />
+              {missAnalysis.secondaryErrorTypes.some((k) => missAnalysis.errorTypeEvidence?.[k]) && (
+                <ul className="text-xs text-muted-foreground mt-1.5 space-y-0.5 list-disc pl-4">
+                  {missAnalysis.secondaryErrorTypes
+                    .filter((k) => missAnalysis.errorTypeEvidence?.[k])
+                    .map((k) => (
+                      <li key={k}>
+                        <span className="font-medium">{friendlyErrorType(k)}:</span>{" "}
+                        <span className="italic">{missAnalysis.errorTypeEvidence[k]}</span>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {booleanItems.length > 0 && (
+            <BooleanStatusRow className="mt-2.5" items={booleanItems} />
+          )}
+        </Section>
+        );
+      })()}
+
 
       {/* What Matters Most For This Error - hidden for cleaner UX */}
       {/* Teaching Decision - hidden for cleaner UX */}
@@ -167,29 +199,8 @@ export function CoachingResult({ result, level }: CoachingResultProps) {
         </Section>
       )}
 
-      {/* Concept Labels (secondary analytics) */}
-      {!isLevel1 && (conceptLabels?.originLabels?.length > 0 || conceptLabels?.patternLabels?.length > 0 || conceptLabels?.morphologyLabels?.length > 0) && (
-        <div className="rounded-xl border border-border bg-card/60 p-4 space-y-2">
-          <h3 className="font-semibold text-xs flex items-center gap-2 text-muted-foreground uppercase tracking-wide">
-            <Puzzle className="h-3.5 w-3.5" /> Concept Labels
-          </h3>
-          <LabelChips labels={conceptLabels.patternLabels} variant="default" title="Patterns" />
-          <LabelChips labels={conceptLabels.originLabels} variant="accent" title="Origin" />
-          <LabelChips labels={conceptLabels.morphologyLabels} variant="warm" title="Morphology" />
-        </div>
-      )}
 
-      {/* Next Step */}
-      {!isLevel1 && (
-        <Section icon={ArrowRight} title="Next Step">
-          <p>{nextStep.practiceFocus}</p>
-          {nextStep.suggestedSimilarWordTypes?.length > 0 && (
-            <div className="mt-2">
-              <LabelChips labels={nextStep.suggestedSimilarWordTypes} variant="accent" title="Try words like" />
-            </div>
-          )}
-        </Section>
-      )}
+      {/* Next Step - hidden */}
 
     </div>
   );

@@ -78,6 +78,7 @@ jobs:
           [ -z "${{ secrets.PROD_VITE_SENTRY_DSN }}" ] && MISSING="$MISSING PROD_VITE_SENTRY_DSN"
           [ -z "${{ secrets.PROD_VITE_SUPABASE_URL }}" ] && MISSING="$MISSING PROD_VITE_SUPABASE_URL"
           [ -z "${{ secrets.PROD_VITE_SUPABASE_PUBLISHABLE_KEY }}" ] && MISSING="$MISSING PROD_VITE_SUPABASE_PUBLISHABLE_KEY"
+          [ -z "${{ secrets.PROD_VITE_HUBSPOT }}" ] && MISSING="$MISSING PROD_VITE_HUBSPOT"
           
           if [ -n "$MISSING" ]; then
             echo "::error::Missing GitHub Secrets:$MISSING"
@@ -117,6 +118,7 @@ jobs:
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.PROD_VERCEL_PROJECT_ID }}
+          VITE_APP_ENV: production
 
       - name: Deploy Project Artifacts to Vercel
         id: deploy

@@ -7,10 +7,13 @@ import { AuthProvider } from "@/hooks/use-auth";
 import Index from "./pages/Index.tsx";
 import Landing from "./pages/Landing.tsx";
 import MockBee from "./pages/MockBee.tsx";
+import Reports from "./pages/Reports.tsx";
+import Pricing from "./pages/Pricing.tsx";
 import Privacy from "./pages/Privacy.tsx";
 import DataDeletion from "./pages/DataDeletion.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Profile from "./pages/Profile.tsx";
+import AuthCallback from "./pages/AuthCallback.tsx";
 
 const queryClient = new QueryClient();
 
@@ -24,9 +27,12 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/mock-bee" element={<MockBee />} />
+            <Route path="/reports" element={<Reports />} />
             <Route path="/landing" element={<Landing />} />
+            <Route path="/pricing" element={<Pricing />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/data-deletion" element={<DataDeletion />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
@@ -36,6 +42,5 @@ const App = () => (
     </AuthProvider>
   </QueryClientProvider>
 );
-
 
 export default App;

@@ -38,7 +38,6 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [subscribed, setSubscribed] = useState(false);
   const [checkingSubscription, setCheckingSubscription] = useState(false);
@@ -127,30 +126,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Strip OAuth tokens from the URL hash so they aren't visible/shareable.
-    // Supabase's detectSessionInUrl parses them, but we clean the address bar.
-    const scrubAuthHash = () => {
-      if (typeof window === "undefined") return;
-      const hash = window.location.hash;
-      if (hash && /[#&](access_token|refresh_token|provider_token|error_description)=/.test(hash)) {
-        const cleanUrl = window.location.pathname + window.location.search;
-        window.history.replaceState(null, "", cleanUrl);
-      }
-    };
-
     // 1. Set up listener FIRST
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
       invalidateCustomListsCache();
       setSession(newSession);
       setUser(newSession?.user ?? null);
-      scrubAuthHash();
     });
     // 2. Then fetch existing session
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setUser(data.session?.user ?? null);
       setLoading(false);
-      scrubAuthHash();
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -181,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: window.location.origin },
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
       });
       return { error: error?.message ?? null };
     },
@@ -189,7 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!supabaseConfigured) return { error: "Auth is not configured. Please contact support." };
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: window.location.origin },
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
       return { error: error?.message ?? null };
     },
@@ -197,7 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!supabaseConfigured) return { error: "Auth is not configured. Please contact support." };
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "facebook",
-        options: { redirectTo: window.location.origin },
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
       return { error: error?.message ?? null };
     },

@@ -84,11 +84,12 @@ export default function Landing() {
             <img src={beePng} alt="AI Spelling Coach mascot" className="w-8 h-8" />
             <span className="font-display font-semibold text-lg">AI Spelling Coach</span>
           </Link>
-          <nav className="hidden md:flex items-center gap-7 text-sm text-muted-foreground">
-            <a href="#features" className="hover:text-foreground transition">Features</a>
-            <a href="#how" className="hover:text-foreground transition">How it works</a>
-            <a href="#themes" className="hover:text-foreground transition">Themes</a>
-            <a href="#faq" className="hover:text-foreground transition">FAQ</a>
+          <nav className="hidden md:flex items-center gap-7 text-base font-medium text-foreground">
+            <a href="#features" className="hover:text-primary transition">Features</a>
+            <a href="#how" className="hover:text-primary transition">How it works</a>
+            <a href="#themes" className="hover:text-primary transition">Themes</a>
+            <a href="#faq" className="hover:text-primary transition">FAQ</a>
+            <Link to="/pricing" className="hover:text-primary transition">Pricing</Link>
           </nav>
           <div className="flex items-center gap-2">
             {user ? (
@@ -134,15 +135,15 @@ export default function Landing() {
             transition={{ duration: 0.5 }}
           >
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-chip text-chip-foreground text-xs font-medium">
-              <Sparkles className="h-3.5 w-3.5" /> Built for spelling bee prep
+              <Sparkles className="h-3.5 w-3.5" /> Built for stronger word learning
             </span>
             <h1 className="mt-4 font-display text-4xl md:text-6xl font-bold tracking-tight leading-[1.05]">
               Spell smarter. <br />
               <span className="text-primary">Coached by AI.</span>
             </h1>
             <p className="mt-5 text-lg text-muted-foreground max-w-xl">
-              A delightful, voice-first spelling tutor for kids — with deep coaching feedback,
-              custom word lists, language-origin drills, and downloadable session reports parents love.
+              An AI-powered coach with guided practice, custom word lists, language-origin drills, 
+              and targeted feedback that helps learners recognize patterns, sounds, and word parts.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <button
@@ -167,12 +168,7 @@ export default function Landing() {
               </Link>
             </div>
             <div className="mt-6 flex items-center gap-4 text-sm text-muted-foreground">
-              <div className="flex -space-x-1">
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <Star key={i} className="h-4 w-4 fill-secondary text-secondary" />
-                ))}
-              </div>
-              Loved by parents prepping their kids for spelling bees.
+              Built to strengthen spelling, vocabulary, and word knowledge.
             </div>
           </motion.div>
 
@@ -232,11 +228,10 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="max-w-2xl">
             <h2 className="font-display text-3xl md:text-4xl font-bold">
-              Everything a young speller needs.
+              Designed for better spelling and word learning.
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Real coaching, not just a quiz. Built around how kids actually learn — with voice,
-              etymology, and feedback that explains the why.
+              More than just a quiz. With voice, morphology, etymology, and feedback that&nbsp;helps learners understand words more deeply and&nbsp;goes beyond memorizing answers.
             </p>
           </div>
           <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -304,16 +299,16 @@ export default function Landing() {
       <section className="py-20 md:py-24 bg-muted/40 border-y border-border">
         <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-12 items-center">
           <div>
-            <h2 className="font-display text-3xl md:text-4xl font-bold">Built with parents in mind.</h2>
+            <h2 className="font-display text-3xl md:text-4xl font-bold">See progress beyond right and wrong.</h2>
             <p className="mt-3 text-muted-foreground">
-              Track each session, see exactly where your child struggled, and download a tidy PDF report
-              after every practice — perfect for spelling bee prep notebooks.
+              Track each session, see exactly where support is needed, and download a tidy PDF report
+              after every practice — perfect for families to keep up with progress.&nbsp;
             </p>
             <ul className="mt-6 space-y-3 text-sm">
               {[
                 "Per-word miss analysis with error types and memory tips",
                 "Concept labels (morphology) for every word",
-                "One-click downloadable session report (PDF)",
+                "One-click downloadable practice report (PDF)",
                 "Custom list import for homework or weekly word lists",
               ].map((b) => (
                 <li key={b} className="flex items-start gap-2.5">

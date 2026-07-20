@@ -7,7 +7,10 @@ import "./index.css";
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
-  sendDefaultPii: true
+  release: import.meta.env.VITE_APP_VERSION || "dev",
+  sendDefaultPii: true,
+  environment: import.meta.env.VITE_APP_ENV || import.meta.env.MODE,
+  autoSessionTracking: true
 });
 
 // Expose Sentry globally so we can test it from the browser developer console
