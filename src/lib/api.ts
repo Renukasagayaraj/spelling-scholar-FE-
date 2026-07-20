@@ -732,4 +732,3 @@ export async function fetchWordDetail(word: string): Promise<WordDetail> {
   if (!res.ok) throw new Error("Failed to fetch word detail");
   return res.json();
 }
-

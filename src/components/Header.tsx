@@ -28,7 +28,7 @@ export function Header({
     const logoContent = (
         <>
             <img src={beePng} alt="Spelling bee mascot" className="h-14 w-auto mt-1" />
-            <span className="text-lg font-display tracking-tight text-foreground font-serif font-semibold">
+            <span className="text-lg font-display font-semibold tracking-tight text-foreground font-serif font-semibold">
                 AI Spelling Coach
             </span>
         </>
@@ -46,6 +46,12 @@ export function Header({
                 </Link>
 
                 <div className="flex items-center gap-1">
+                     <a
+                        href="/pricing"
+                        className="hidden sm:inline-flex font-medium px-3 py-1.5 rounded-lg text-foreground hover:text-primary transition-colors text-base"
+                        >
+                        Pricing
+                    </a>
                     <AuthMenu />
                     {showSound && (
                         <Tooltip>
