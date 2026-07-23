@@ -343,7 +343,6 @@ export default function Index() {
       return {
         mode: "custom",
         customListId,
-        customListName: selectedCustomList?.id === customListId ? selectedCustomList.name : undefined,
         forceCloseCurrent,
       };
     }
@@ -597,50 +596,50 @@ export default function Index() {
     if (saved) {
       void (async () => {
         try {
-          const {
-            activeSessionId: id,
-            activeSessionMode: savedMode,
-            sessionStartTime: start,
-          } = JSON.parse(saved);
+        const {
+          activeSessionId: id,
+          activeSessionMode: savedMode,
+          sessionStartTime: start,
+        } = JSON.parse(saved);
 
-          if (id && start) {
-            const session = await fetchPracticeSession(id);
-            if (!session || session.status !== "active") {
-              clearRecoveredSessionState("This session was closed in another tab.");
-              setIsRecovering(false);
-              return;
-            }
-
-            const restoredMode = getRecoveredModeFromSession(session, savedMode);
-            await prepareUiForMode(restoredMode);
-
-            setActiveSessionId(id);
-            setActiveSessionMode(restoredMode || null);
-            setSessionStartTime(start);
-            const attempts = await fetchSessionAttempts(id);
-            if (attempts && attempts.length > 0) {
-              const historyEntries = attempts.map(historyEntryFromAttempt);
-              setHistory(historyEntries);
-              setSessionWordCount(historyEntries.length);
-              setSessionCorrectCount(
-                historyEntries.filter((entry) => entry.result?.correctness?.isCorrect).length,
-              );
-              setActiveHistoryIndex(historyEntries.length - 1);
-              const lastEntry = historyEntries[historyEntries.length - 1];
-              setWord(lastEntry.word);
-              setAttempt(lastEntry.attempt);
-              setResult(lastEntry.result);
-            } else {
-              setSessionWordCount(0);
-              setSessionCorrectCount(0);
-              setHistory([]);
-              setActiveHistoryIndex(null);
-              loadWord(getParamsFromMode(restoredMode));
-            }
+        if (id && start) {
+          const session = await fetchPracticeSession(id);
+          if (!session || session.status !== "active") {
+            clearRecoveredSessionState("This session was closed in another tab.");
             setIsRecovering(false);
-          } else {
-            setIsRecovering(false);
+            return;
           }
+
+          const restoredMode = getRecoveredModeFromSession(session, savedMode);
+          await prepareUiForMode(restoredMode);
+
+          setActiveSessionId(id);
+          setActiveSessionMode(restoredMode || null);
+          setSessionStartTime(start);
+          const attempts = await fetchSessionAttempts(id);
+          if (attempts && attempts.length > 0) {
+            const historyEntries = attempts.map(historyEntryFromAttempt);
+            setHistory(historyEntries);
+            setSessionWordCount(historyEntries.length);
+            setSessionCorrectCount(
+              historyEntries.filter((entry) => entry.result?.correctness?.isCorrect).length,
+            );
+            setActiveHistoryIndex(historyEntries.length - 1);
+            const lastEntry = historyEntries[historyEntries.length - 1];
+            setWord(lastEntry.word);
+            setAttempt(lastEntry.attempt);
+            setResult(lastEntry.result);
+          } else {
+            setSessionWordCount(0);
+            setSessionCorrectCount(0);
+            setHistory([]);
+            setActiveHistoryIndex(null);
+            loadWord(getParamsFromMode(restoredMode));
+          }
+          setIsRecovering(false);
+        } else {
+          setIsRecovering(false);
+        }
         } catch (e) {
           console.error("Failed to recover active session:", e);
           setError("Could not restore the previous session. Please start again.");
@@ -894,17 +893,20 @@ export default function Index() {
       return;
     }
     setLevel(lvl);
-    startSession(`standard_level_${lvl}`);
   };
 
-  const handleStartStandardSession = () => {
-    setHistory([]);
-    setActiveHistoryIndex(null);
-    setStandardSessionActive(true);
-    loadWord({ level });
+  const handleStartStandardSession = async () => {
+    if (!level) return;
+
+    const started = await startSession(`standard_level_${level}`);
+
+    if (started) {
+      setStandardSessionActive(true);
+    }
   };
 
-  const handleStopStandardSession = () => {
+  const handleStopStandardSession = async () => {
+    await endSession();
     if (history.length > 0) {
       downloadSessionReport(history);
     }

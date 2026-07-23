@@ -459,7 +459,6 @@ export interface PracticeSessionRecord {
   status?: "active" | "completed" | "abandoned";
   origin_language?: string | null;
   custom_list_id?: string | null;
-  custom_list_name?: string | null;
   session_started_at: string;
   session_ended_at: string | null;
   total_words_attempted?: number;
@@ -488,25 +487,24 @@ export interface WordAttemptRecord {
 
 export type StartPracticeSessionResult =
   | {
-      action: "created";
-      sessionId: string;
-    }
+    action: "created";
+    sessionId: string;
+  }
   | {
-      action: "resume_existing";
-      sessionId: string;
-    }
+    action: "resume_existing";
+    sessionId: string;
+  }
   | {
-      action: "active_session_conflict";
-      activeSessionId: string;
-      activeMode: string;
-    };
+    action: "active_session_conflict";
+    activeSessionId: string;
+    activeMode: string;
+  };
 
 export interface StartPracticeSessionRequest {
   mode: string;
   level?: number;
   originLanguage?: string;
   customListId?: string;
-  customListName?: string;
   forceCloseCurrent?: boolean;
 }
 
@@ -580,7 +578,6 @@ export async function endPracticeSession(body: EndSessionBody, keepAlive?: boole
 
 export interface DbUserStats {
   mode: string;
-  level: number | null;
   origin_language?: string | null;
   custom_list_id?: string | null;
   current_streak: number;
