@@ -37,13 +37,14 @@ export function Header({
     return (
         <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-transparent backdrop-blur-md">
             <div className={`mx-auto flex h-16 ${maxWidthClass} items-center justify-between px-4 sm:px-8`}>
-                <Link
-                    to="/"
+                <button
+                    type="button"
                     onClick={onLogoClick}
+                    title="Home"
                     className="flex items-center gap-2 rounded-lg px-1.5 py-1 -ml-1.5 hover:bg-primary/10 transition-colors"
                 >
                     {logoContent}
-                </Link>
+                </button>
 
                 <div className="flex items-center gap-1">
                      <a

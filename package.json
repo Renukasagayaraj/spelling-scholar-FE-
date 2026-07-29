@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:dev": "node -e \"if (!process.env.BASE_URL?.trim()) { console.error('Set BASE_URL to the Dev deployment URL.'); process.exit(1); }\" && playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -80,6 +82,7 @@
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react-swc": "^3.11.0",
+    "@vitest/coverage-v8": "^3.2.7",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",

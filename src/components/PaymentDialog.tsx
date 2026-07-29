@@ -64,7 +64,7 @@ export function PaymentDialog({ open, onOpenChange }: PaymentDialogProps) {
                     <div className="bg-muted/40 rounded-xl p-4 border border-border/50 text-center">
                         <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wider mb-1">Monthly Plan</p>
                         <div className="flex items-baseline justify-center gap-1">
-                            <span className="text-4xl font-extrabold tracking-tight text-[#1e3a5f] font-serif">$9.99</span>
+                            <span className="text-4xl font-extrabold tracking-tight text-[#1e3a5f] font-serif">${import.meta.env.VITE_SUBSCRIPTION_PRICE || '9.99'}</span>
                             <span className="text-muted-foreground text-sm">/ month</span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-2">Cancel anytime. 100% secure Checkout.</p>

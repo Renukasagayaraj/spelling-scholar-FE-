@@ -55,7 +55,7 @@ jobs:
           cache-dependency-path: spelling-scholar-fe/package-lock.json
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run Unit Tests
         run: npm test
@@ -78,7 +78,9 @@ jobs:
           [ -z "${{ secrets.PROD_VITE_SENTRY_DSN }}" ] && MISSING="$MISSING PROD_VITE_SENTRY_DSN"
           [ -z "${{ secrets.PROD_VITE_SUPABASE_URL }}" ] && MISSING="$MISSING PROD_VITE_SUPABASE_URL"
           [ -z "${{ secrets.PROD_VITE_SUPABASE_PUBLISHABLE_KEY }}" ] && MISSING="$MISSING PROD_VITE_SUPABASE_PUBLISHABLE_KEY"
-          [ -z "${{ secrets.PROD_VITE_HUBSPOT }}" ] && MISSING="$MISSING PROD_VITE_HUBSPOT"
+          [ -z "${{ secrets.PROD_VITE_TIDIO_TRACK_ID }}" ] && MISSING="$MISSING PROD_VITE_TIDIO_TRACK_ID"
+          [ -z "${{ secrets.PROD_VITE_GOOGLE_ANALYTICS_ID }}" ] && MISSING="$MISSING PROD_VITE_GOOGLE_ANALYTICS_ID"
+          [ -z "${{ secrets.PROD_VITE_SUBSCRIPTION_PRICE }}" ] && MISSING="$MISSING PROD_VITE_SUBSCRIPTION_PRICE"
           
           if [ -n "$MISSING" ]; then
             echo "::error::Missing GitHub Secrets:$MISSING"
@@ -109,16 +111,27 @@ jobs:
 
       - name: Build Project Artifacts
         run: |
-          echo "VITE_API_BASE_URL=${{ secrets.PROD_VITE_API_BASE_URL || secrets.PROD_API_BASE_URL }}" >> .env
-          echo "VITE_SENTRY_DSN=${{ secrets.PROD_VITE_SENTRY_DSN || secrets.PROD_SENTRY_DSN }}" >> .env
-          echo "VITE_SUPABASE_URL=${{ secrets.PROD_VITE_SUPABASE_URL || secrets.PROD_SUPABASE_URL }}" >> .env
-          echo "VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.PROD_VITE_SUPABASE_PUBLISHABLE_KEY || secrets.PROD_SUPABASE_PUBLISHABLE_KEY }}" >> .env
-          echo "VITE_HUBSPOT_TRACKING_ID=${{ secrets.PROD_VITE_HUBSPOT }}" >> .env
+          echo "VITE_API_BASE_URL=${{ secrets.PROD_VITE_API_BASE_URL || secrets.PROD_API_BASE_URL }}" > .env.production
+          echo "VITE_SENTRY_DSN=${{ secrets.PROD_VITE_SENTRY_DSN || secrets.PROD_SENTRY_DSN }}" >> .env.production
+          echo "VITE_SUPABASE_URL=${{ secrets.PROD_VITE_SUPABASE_URL || secrets.PROD_SUPABASE_URL }}" >> .env.production
+          echo "VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.PROD_VITE_SUPABASE_PUBLISHABLE_KEY || secrets.PROD_SUPABASE_PUBLISHABLE_KEY }}" >> .env.production
+          echo "VITE_TIDIO_TRACK_ID=${{ secrets.PROD_VITE_TIDIO_TRACK_ID }}" >> .env.production
+          echo "VITE_GOOGLE_ANALYTICS_ID=${{ secrets.PROD_VITE_GOOGLE_ANALYTICS_ID }}" >> .env.production
+          echo "VITE_SUBSCRIPTION_PRICE=${{ secrets.PROD_VITE_SUBSCRIPTION_PRICE }}" >> .env.production
+          mkdir -p .vercel
+          cp .env.production .vercel/.env.production.local
           vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.PROD_VERCEL_PROJECT_ID }}
           VITE_APP_ENV: production
+          VITE_API_BASE_URL: ${{ secrets.PROD_VITE_API_BASE_URL || secrets.PROD_API_BASE_URL }}
+          VITE_SENTRY_DSN: ${{ secrets.PROD_VITE_SENTRY_DSN || secrets.PROD_SENTRY_DSN }}
+          VITE_SUPABASE_URL: ${{ secrets.PROD_VITE_SUPABASE_URL || secrets.PROD_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.PROD_VITE_SUPABASE_PUBLISHABLE_KEY || secrets.PROD_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_TIDIO_TRACK_ID: ${{ secrets.PROD_VITE_TIDIO_TRACK_ID }}
+          VITE_GOOGLE_ANALYTICS_ID: ${{ secrets.PROD_VITE_GOOGLE_ANALYTICS_ID }}
+          VITE_SUBSCRIPTION_PRICE: ${{ secrets.PROD_VITE_SUBSCRIPTION_PRICE }}
 
       - name: Deploy Project Artifacts to Vercel
         id: deploy

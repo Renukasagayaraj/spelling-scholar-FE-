@@ -162,12 +162,12 @@ export default function MockBee() {
   const startRound = async (forceCloseCurrent = false): Promise<boolean> => {
     setSetupError(null);
     setRoundError(null);
-    if (!user) {
-      setAuthOpen(true);
+    if (wordSource === "standard" && String(level) === "3" && !subscribed) {
+      setPaymentOpen(true);
       return false;
     }
-    if (!subscribed) {
-      setPaymentOpen(true);
+    if (wordSource === "custom_list" && !user) {
+      setAuthOpen(true);
       return false;
     }
     if (wordSource === "custom_list" && !customListId) {
@@ -194,7 +194,7 @@ export default function MockBee() {
         return false;
       }
 
-      setSession(result.session);
+      setSession((result as any).session || (result as any));
       setStage("round");
       resetTurnState();
       return true;

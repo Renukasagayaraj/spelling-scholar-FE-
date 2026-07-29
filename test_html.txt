@@ -11,7 +11,7 @@
     </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI Spelling Coach â€” Built to strengthen spelling, vocabulary, and word knowledge</title>
+    <title>AI Spelling Coach — Built to strengthen spelling, vocabulary, and word knowledge</title>
     <meta name="description" content="An AI-powered coach with guided practice, custom word lists, language-origin drills, and targeted feedback that helps learners recognize patterns, sounds, and word parts.">
     <meta name="author" content="AI Spelling Coach" />
     <link rel="canonical" href="https://brightbee.ai/" />
@@ -25,14 +25,16 @@
     
     
     <meta name="twitter:image" content="https://brightbee.ai/og-image.png">
-    <meta property="og:title" content="AI Spelling Coach â€” Built to strengthen spelling, vocabulary, and word knowledge">
-  <meta name="twitter:title" content="AI Spelling Coach â€” Built to strengthen spelling, vocabulary, and word knowledge">
+    <meta property="og:title" content="AI Spelling Coach — Built to strengthen spelling, vocabulary, and word knowledge">
+  <meta name="twitter:title" content="AI Spelling Coach — Built to strengthen spelling, vocabulary, and word knowledge">
   <meta property="og:description" content="An AI-powered coach with guided practice, custom word lists, language-origin drills, and targeted feedback that helps learners recognize patterns, sounds, and word parts.">
   <meta name="twitter:description" content="An AI-powered coach with guided practice, custom word lists, language-origin drills, and targeted feedback that helps learners recognize patterns, sounds, and word parts.">
+  <script type="module" crossorigin src="/assets/index-eTbhzZDc.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-C0AZF-jk.css">
 </head>
 
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
+

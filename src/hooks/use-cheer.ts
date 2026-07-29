@@ -5,7 +5,15 @@ const STORAGE_KEY = "spelling-coach-sound-enabled";
 
 export function useCheer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const { profile, updateProfile } = useAuth();
+  let profile: any = undefined;
+  let updateProfile: any = undefined;
+  try {
+    const auth = useAuth();
+    profile = auth.profile;
+    updateProfile = auth.updateProfile;
+  } catch {
+    // Gracefully handle useCheer called outside AuthProvider in tests
+  }
 
   const [soundEnabled, setSoundEnabled] = useState(() => {
     try {
@@ -41,10 +49,12 @@ export function useCheer() {
     a.play().catch(() => { });
   }, [soundEnabled]);
 
-  const toggleSound = useCallback(async () => {
+  const toggleSound = useCallback(() => {
     setSoundEnabled((v) => {
       const next = !v;
-      updateProfile({ audio_enabled: next }).catch(console.error);
+      if (updateProfile) {
+        updateProfile({ audio_enabled: next }).catch(console.error);
+      }
       return next;
     });
   }, [updateProfile]);

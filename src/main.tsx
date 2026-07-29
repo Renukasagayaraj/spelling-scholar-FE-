@@ -20,17 +20,13 @@ Sentry.init({
 import { supabase } from "@/lib/supabase";
 (window as any).supabase = supabase;
 
-// Dynamically inject HubSpot tracking script if configured
-const hubspotId = import.meta.env.VITE_HUBSPOT_TRACKING_ID;
-if (hubspotId) {
+// Inject Tidio script
+(function() {
   const script = document.createElement("script");
-  script.type = "text/javascript";
-  script.id = "hs-script-loader";
+  script.src = `//code.tidio.co/${import.meta.env.VITE_TIDIO_TRACK_ID}.js`;
   script.async = true;
-  script.defer = true;
-  script.src = `//js.hs-scripts.com/${hubspotId}.js`;
   document.body.appendChild(script);
-}
+})();
 
 createRoot(document.getElementById("root")!).render(
   <>

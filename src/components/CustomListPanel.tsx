@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
-import { Loader2, Upload, List, Check, ChevronDown, ChevronRight, LogIn } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Loader2, Upload, FileUp, List, Check, ChevronDown, ChevronRight, LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fetchCustomLists, importCustomWordList, fetchCustomListWords, UnauthorizedError } from "@/lib/api";
+import { fetchCustomLists, importCustomWordList, importCustomWordFile, fetchCustomListWords, UnauthorizedError } from "@/lib/api";
 import type { CustomListSummary, ImportCustomListResponse, WordData } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { AuthDialog } from "@/components/AuthDialog";
@@ -26,8 +26,13 @@ export function CustomListPanel({ selectedList, onSelectList, onStartPractice }:
   const [importError, setImportError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportCustomListResponse | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [fileImporting, setFileImporting] = useState(false);
+  const [fileImportError, setFileImportError] = useState<string | null>(null);
+  const [fileImportResult, setFileImportResult] = useState<ImportCustomListResponse | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileImportAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => { fileImportAbortRef.current?.abort(); }, []);
 
-  // Track which list is expanded to show words
   const [expandedListId, setExpandedListId] = useState<string | null>(null);
   const [listWordsMap, setListWordsMap] = useState<Record<string, WordData[]>>({});
   const [wordsLoadingId, setWordsLoadingId] = useState<string | null>(null);
@@ -107,7 +112,41 @@ export function CustomListPanel({ selectedList, onSelectList, onStartPractice }:
     }
   };
 
-  // Logged-out gate
+  const handleFileSelected = async (file: File | undefined) => {
+    if (!file) return;
+
+    setFileImportError(null);
+    setFileImportResult(null);
+    const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+    const allowedContentTypes = extension === ".txt"
+      ? new Set(["", "text/plain", "application/octet-stream"])
+      : new Set(["", "text/csv", "application/csv", "application/vnd.ms-excel", "text/plain", "application/octet-stream"]);
+    if ((extension !== ".txt" && extension !== ".csv") || !allowedContentTypes.has(file.type.toLowerCase())) {
+      setFileImportError("Unsupported file type. Please select a .txt or .csv file.");
+      return;
+    }
+
+    fileImportAbortRef.current?.abort();
+    const controller = new AbortController();
+    fileImportAbortRef.current = controller;
+
+    setFileImporting(true);
+    try {
+      const result = await importCustomWordFile(file, { signal: controller.signal });
+      setFileImportResult(result);
+      await loadLists();
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      if (e instanceof UnauthorizedError) {
+        setFileImportError("Your session expired. Please sign in again.");
+      } else {
+        setFileImportError(e instanceof Error ? e.message : "File import failed. Please try again.");
+      }
+    } finally {
+      setFileImporting(false);
+    }
+  };
+
   if (configured && !authLoading && !user) {
     return (
       <div className="space-y-4">
@@ -131,17 +170,54 @@ export function CustomListPanel({ selectedList, onSelectList, onStartPractice }:
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between gap-3 mb-2">
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
           <List className="h-4 w-4" /> Your Word Lists
         </h3>
-        <button
-          onClick={() => { setShowImport((v) => !v); setImportResult(null); }}
-          className="text-xs font-medium text-primary hover:underline flex items-center gap-1"
-        >
-          <Upload className="h-3 w-3" /> {showImport ? "Hide Import" : "Import New List"}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => { setShowImport((v) => !v); setImportResult(null); }}
+            className="text-xs font-medium text-primary hover:underline flex items-center gap-1"
+          >
+            <Upload className="h-3 w-3" /> {showImport ? "Hide Import" : "Import New List"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setFileImportError(null);
+              setFileImportResult(null);
+              fileInputRef.current?.click();
+            }}
+            disabled={fileImporting}
+            className="text-xs font-medium text-primary hover:underline flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {fileImporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileUp className="h-3 w-3" />}
+            {fileImporting ? "Importing…" : "Import File"}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.csv"
+            aria-label="Choose word list file"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              void handleFileSelected(file);
+            }}
+          />
+        </div>
       </div>
+
+      {fileImportError && (
+        <p role="alert" className="text-xs text-destructive text-right">{fileImportError}</p>
+      )}
+      {fileImportResult && (
+        <div className="rounded-lg bg-success/10 border border-success/30 p-3 text-xs text-center space-y-0.5">
+          <p className="font-semibold text-success">✓ File imported as "{fileImportResult.list.name}"</p>
+          <p className="text-muted-foreground">{fileImportResult.importedCount} imported · {fileImportResult.skippedExistingCount} skipped</p>
+        </div>
+      )}
 
       {listsLoading && (
         <div className="flex justify-center py-4">
