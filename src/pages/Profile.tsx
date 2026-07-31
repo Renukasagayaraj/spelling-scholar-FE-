@@ -103,6 +103,20 @@ export default function Profile() {
         }
     };
 
+    const handleWeeklyEmailToggle = async (enabled: boolean) => {
+        try {
+            const { error } = await updateProfile({ weekly_email_enabled: enabled });
+            if (error) {
+                toast.error(error);
+                return;
+            }
+            toast.success(enabled ? "Weekly progress emails enabled." : "Weekly progress emails turned off.");
+        } catch (err) {
+            console.error(err);
+            toast.error("Could not update email preferences.");
+        }
+    };
+
     useEffect(() => {
         if (!loading && !user) {
             // Redirect or show login card, but we let the UI render the login card for better UX
@@ -289,7 +303,7 @@ export default function Profile() {
                         {/* Right side: Subscription Management */}
                         <div className="md:col-span-2 space-y-6">
                             {/* Profile Details Form */}
-                            <div className="bg-card border border-border/60 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+                            {/* <div className="bg-card border border-border/60 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
                                 <div className="flex items-center gap-2 border-b border-border/50 pb-4">
                                     <div className="p-2 bg-primary/10 text-primary rounded-xl">
                                         <UserIcon className="h-5 w-5" />
@@ -392,6 +406,30 @@ export default function Profile() {
                                         )}
                                     </button>
                                 </form>
+                            </div> */}
+
+                            <div className="bg-card border border-border/60 rounded-2xl p-6 shadow-sm">
+                                <div className="flex items-start justify-between gap-5">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2 text-foreground font-semibold">
+                                            <Mail className="h-5 w-5 text-primary" />
+                                            Weekly progress email
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">
+                                            Send a weekly learning summary to this account email. You can turn this off any time.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={profile?.weekly_email_enabled ?? false}
+                                        onClick={() => handleWeeklyEmailToggle(!(profile?.weekly_email_enabled ?? false))}
+                                        className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${(profile?.weekly_email_enabled ?? false) ? "bg-primary" : "bg-muted"}`}
+                                    >
+                                        <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${(profile?.weekly_email_enabled ?? false) ? "translate-x-6" : "translate-x-1"}`} />
+                                        <span className="sr-only">Toggle weekly progress email</span>
+                                    </button>
+                                </div>
                             </div>
 
                             {subscribed ? (

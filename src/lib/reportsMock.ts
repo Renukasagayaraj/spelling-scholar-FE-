@@ -19,9 +19,18 @@ export interface ReportsMock {
   missAnalysis: {
     primary: { key: string; label: string; count: number }[];
     secondary: { key: string; label: string; count: number }[];
-    byLevel: { level: string; [k: string]: number | string }[];
-    byMode: { mode: string; [k: string]: number | string }[];
+    byLevel: { level: string;[k: string]: number | string }[];
+    byMode: { mode: string;[k: string]: number | string }[];
     recentIncorrect: {
+      target: string;
+      attempt: string;
+      primary: string;
+      secondary: string[];
+      date: string;
+      mode: string;
+      level: string;
+    }[];
+    recentMissedWords: {
       target: string;
       attempt: string;
       primary: string;
@@ -56,8 +65,8 @@ export interface ReportsMock {
       level: string;
       correct: boolean;
     }[];
-    byMode: { mode: string; definition: number; example: number; origin: number; repeat: number }[];
-    byLevel: { level: string; definition: number; example: number; origin: number; repeat: number }[];
+    byMode: { mode: string; definition: number; example: number; origin: number; partOfSpeech: number; repeat: number; voice: number }[];
+    byLevel: { level: string; definition: number; example: number; origin: number; partOfSpeech: number; repeat: number; voice: number }[];
   };
   sessions: {
     id: string;
@@ -70,7 +79,19 @@ export interface ReportsMock {
     accuracy: number;
     durationMinutes: number;
     topMissCategories: string[];
-    supportsUsed: { definition: number; example: number; origin: number; repeat: number };
+    supportsUsed: { definition: number; example: number; origin: number; partOfSpeech: number; repeat: number; voice: number };
+    words: {
+      target: string;
+      attempt: string;
+      correct: boolean;
+      primaryError: string;
+      secondaryErrors: string[];
+      explanation: string;
+      memoryTip: string;
+      wordBreakdown: string;
+      conceptTeaching: string;
+      sayAloudTip: string;
+    }[];
   }[];
   mockBee: {
     roundsCompleted: number;
@@ -86,8 +107,20 @@ export interface ReportsMock {
       correct: number;
       incorrect: number;
       timedOut: number;
+      reviewCards: unknown[];
     }[];
   };
+}
+
+export type ReportSection = keyof ReportsMock;
+export type ReportSession = ReportsMock["sessions"][number];
+export type ReportSessionWord = ReportSession["words"][number];
+
+export interface ReportPagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 }
 
 const days = (n: number) => {
@@ -167,6 +200,7 @@ export const REPORTS_MOCK: ReportsMock = {
       { target: "believe", attempt: "beleive", primary: "Letter order swap", secondary: ["Vowel confusion"], date: "Jul 12", mode: "Standard", level: "Level 1" },
       { target: "separate", attempt: "seperate", primary: "Vowel confusion", secondary: [], date: "Jul 12", mode: "Standard", level: "Level 2" },
     ],
+    recentMissedWords: [],
   },
   wordKnowledge: {
     byOrigin: [
@@ -238,22 +272,22 @@ export const REPORTS_MOCK: ReportsMock = {
       { word: "karaoke", date: "Jul 13", supports: ["Origin"], mode: "Foreign Origin", level: "Level 2", correct: true },
     ],
     byMode: [
-      { mode: "Standard", definition: 30, example: 22, origin: 14, repeat: 42 },
-      { mode: "Custom", definition: 12, example: 8, origin: 4, repeat: 18 },
-      { mode: "Foreign", definition: 14, example: 12, origin: 12, repeat: 20 },
-      { mode: "Mock Bee", definition: 6, example: 6, origin: 4, repeat: 11 },
+      { mode: "Standard", definition: 30, example: 22, origin: 14, partOfSpeech: 10, repeat: 42, voice: 8 },
+      { mode: "Custom", definition: 12, example: 8, origin: 4, partOfSpeech: 3, repeat: 18, voice: 2 },
+      { mode: "Foreign", definition: 14, example: 12, origin: 12, partOfSpeech: 5, repeat: 20, voice: 4 },
+      { mode: "Mock Bee", definition: 6, example: 6, origin: 4, partOfSpeech: 4, repeat: 11, voice: 3 },
     ],
     byLevel: [
-      { level: "Level 1", definition: 18, example: 14, origin: 6, repeat: 26 },
-      { level: "Level 2", definition: 28, example: 20, origin: 14, repeat: 40 },
-      { level: "Level 3", definition: 16, example: 14, origin: 14, repeat: 25 },
+      { level: "Level 1", definition: 18, example: 14, origin: 6, partOfSpeech: 5, repeat: 26, voice: 4 },
+      { level: "Level 2", definition: 28, example: 20, origin: 14, partOfSpeech: 9, repeat: 40, voice: 7 },
+      { level: "Level 3", definition: 16, example: 14, origin: 14, partOfSpeech: 8, repeat: 25, voice: 6 },
     ],
   },
   sessions: [
-    { id: "s21", startedAt: "Jul 15, 5:12 PM", mode: "Standard", level: "Level 2", attempted: 14, correct: 10, incorrect: 4, accuracy: 71, durationMinutes: 18, topMissCategories: ["Vowel confusion", "Silent-letter"], supportsUsed: { definition: 3, example: 2, origin: 1, repeat: 5 } },
-    { id: "s20", startedAt: "Jul 14, 4:40 PM", mode: "Foreign Origin", level: "Level 3", attempted: 12, correct: 7, incorrect: 5, accuracy: 58, durationMinutes: 22, topMissCategories: ["Silent-letter", "Missing letter"], supportsUsed: { definition: 2, example: 3, origin: 4, repeat: 6 } },
-    { id: "s19", startedAt: "Jul 13, 3:15 PM", mode: "Custom", level: "Level 2", attempted: 16, correct: 13, incorrect: 3, accuracy: 81, durationMinutes: 15, topMissCategories: ["Double letter"], supportsUsed: { definition: 4, example: 2, origin: 0, repeat: 6 } },
-    { id: "s18", startedAt: "Jul 12, 6:02 PM", mode: "Mock Bee", level: "Level 2", attempted: 10, correct: 6, incorrect: 4, accuracy: 60, durationMinutes: 8, topMissCategories: ["Likely rushed"], supportsUsed: { definition: 1, example: 1, origin: 0, repeat: 3 } },
+    { id: "s21", startedAt: "Jul 15, 5:12 PM", mode: "Standard", level: "Level 2", attempted: 14, correct: 10, incorrect: 4, accuracy: 71, durationMinutes: 18, topMissCategories: ["Vowel confusion", "Silent-letter"], supportsUsed: { definition: 3, example: 2, origin: 1, partOfSpeech: 0, repeat: 5, voice: 0 }, words: [] },
+    { id: "s20", startedAt: "Jul 14, 4:40 PM", mode: "Foreign Origin", level: "Level 3", attempted: 12, correct: 7, incorrect: 5, accuracy: 58, durationMinutes: 22, topMissCategories: ["Silent-letter", "Missing letter"], supportsUsed: { definition: 2, example: 3, origin: 4, partOfSpeech: 0, repeat: 6, voice: 0 }, words: [] },
+    { id: "s19", startedAt: "Jul 13, 3:15 PM", mode: "Custom", level: "Level 2", attempted: 16, correct: 13, incorrect: 3, accuracy: 81, durationMinutes: 15, topMissCategories: ["Double letter"], supportsUsed: { definition: 4, example: 2, origin: 0, partOfSpeech: 0, repeat: 6, voice: 0 }, words: [] },
+    { id: "s18", startedAt: "Jul 12, 6:02 PM", mode: "Mock Bee", level: "Level 2", attempted: 10, correct: 6, incorrect: 4, accuracy: 60, durationMinutes: 8, topMissCategories: ["Likely rushed"], supportsUsed: { definition: 1, example: 1, origin: 0, partOfSpeech: 0, repeat: 3, voice: 0 }, words: [] },
   ],
   mockBee: {
     roundsCompleted: 9,
@@ -280,10 +314,10 @@ export const REPORTS_MOCK: ReportsMock = {
       { level: "Level 3", accuracy: 58 },
     ],
     rounds: [
-      { id: "r6", date: "Jul 15", level: "Level 2", attempted: 10, correct: 9, incorrect: 1, timedOut: 0 },
-      { id: "r5", date: "Jul 14", level: "Level 3", attempted: 10, correct: 7, incorrect: 2, timedOut: 1 },
-      { id: "r4", date: "Jul 13", level: "Level 2", attempted: 10, correct: 8, incorrect: 1, timedOut: 1 },
-      { id: "r3", date: "Jul 12", level: "Level 3", attempted: 10, correct: 5, incorrect: 3, timedOut: 2 },
+      { id: "r6", date: "Jul 15", level: "Level 2", attempted: 10, correct: 9, incorrect: 1, timedOut: 0, reviewCards: [] },
+      { id: "r5", date: "Jul 14", level: "Level 3", attempted: 10, correct: 7, incorrect: 2, timedOut: 1, reviewCards: [] },
+      { id: "r4", date: "Jul 13", level: "Level 2", attempted: 10, correct: 8, incorrect: 1, timedOut: 1, reviewCards: [] },
+      { id: "r3", date: "Jul 12", level: "Level 3", attempted: 10, correct: 5, incorrect: 3, timedOut: 2, reviewCards: [] },
     ],
   },
 };

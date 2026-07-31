@@ -94,7 +94,9 @@ function parseStoredCoaching(attempt: DbWordAttempt): CoachingResponse {
     correctness: { isCorrect: attempt.is_correct, reinforceSuccess: true },
     missAnalysis: {
       summary: "",
-      errorTypes: [],
+      primaryErrorType: null,
+      secondaryErrorTypes: [],
+      errorTypeEvidence: {},
       primaryErrorFocus: "",
       likelyWrongWordInterpretation: false,
       usedMeaningDisambiguationWell: false,
@@ -159,32 +161,6 @@ function historyEntryFromAttempt(attempt: DbWordAttempt): HistoryEntry | null {
     attempt: attempt.child_attempt,
     result,
   };
-}
-
-function sessionRequestForMode(
-  modeKey: string,
-  customListName?: string,
-): StartPracticeSessionRequest {
-  if (modeKey.startsWith("standard_level_")) {
-    return {
-      mode: "standard",
-      level: Number(modeKey.replace("standard_level_", "")),
-    };
-  }
-  if (modeKey.startsWith("custom_list_")) {
-    return {
-      mode: "custom",
-      customListId: modeKey.replace("custom_list_", ""),
-      customListName,
-    };
-  }
-  if (modeKey.startsWith("foreign_origin_")) {
-    return {
-      mode: "foreign_origin",
-      originLanguage: modeKey.replace("foreign_origin_", ""),
-    };
-  }
-  return { mode: modeKey };
 }
 
 function nextWordRequestKey(params: NextWordParams): string {
@@ -710,50 +686,50 @@ export default function Index() {
     if (saved) {
       void (async () => {
         try {
-        const {
-          activeSessionId: id,
-          activeSessionMode: savedMode,
-          sessionStartTime: start,
-        } = JSON.parse(saved);
+          const {
+            activeSessionId: id,
+            activeSessionMode: savedMode,
+            sessionStartTime: start,
+          } = JSON.parse(saved);
 
-        if (id && start) {
-          const session = await fetchPracticeSession(id);
-          if (!session || session.status !== "active") {
-            clearRecoveredSessionState("This session was closed in another tab.");
+          if (id && start) {
+            const session = await fetchPracticeSession(id);
+            if (!session || session.status !== "active") {
+              clearRecoveredSessionState("This session was closed in another tab.");
+              setIsRecovering(false);
+              return;
+            }
+
+            const restoredMode = getRecoveredModeFromSession(session, savedMode);
+            await prepareUiForMode(restoredMode);
+
+            setActiveSessionId(id);
+            setActiveSessionMode(restoredMode || null);
+            setSessionStartTime(start);
+            const attempts = await fetchSessionAttempts(id);
+            if (attempts && attempts.length > 0) {
+              const historyEntries = attempts.map(historyEntryFromAttempt);
+              setHistory(historyEntries);
+              setSessionWordCount(historyEntries.length);
+              setSessionCorrectCount(
+                historyEntries.filter((entry) => entry.result?.correctness?.isCorrect).length,
+              );
+              setActiveHistoryIndex(historyEntries.length - 1);
+              const lastEntry = historyEntries[historyEntries.length - 1];
+              setWord(lastEntry.word);
+              setAttempt(lastEntry.attempt);
+              setResult(lastEntry.result);
+            } else {
+              setSessionWordCount(0);
+              setSessionCorrectCount(0);
+              setHistory([]);
+              setActiveHistoryIndex(null);
+              loadWord(getParamsFromMode(restoredMode));
+            }
             setIsRecovering(false);
-            return;
-          }
-
-          const restoredMode = getRecoveredModeFromSession(session, savedMode);
-          await prepareUiForMode(restoredMode);
-
-          setActiveSessionId(id);
-          setActiveSessionMode(restoredMode || null);
-          setSessionStartTime(start);
-          const attempts = await fetchSessionAttempts(id);
-          if (attempts && attempts.length > 0) {
-            const historyEntries = attempts.map(historyEntryFromAttempt);
-            setHistory(historyEntries);
-            setSessionWordCount(historyEntries.length);
-            setSessionCorrectCount(
-              historyEntries.filter((entry) => entry.result?.correctness?.isCorrect).length,
-            );
-            setActiveHistoryIndex(historyEntries.length - 1);
-            const lastEntry = historyEntries[historyEntries.length - 1];
-            setWord(lastEntry.word);
-            setAttempt(lastEntry.attempt);
-            setResult(lastEntry.result);
           } else {
-            setSessionWordCount(0);
-            setSessionCorrectCount(0);
-            setHistory([]);
-            setActiveHistoryIndex(null);
-            loadWord(getParamsFromMode(restoredMode));
+            setIsRecovering(false);
           }
-          setIsRecovering(false);
-        } else {
-          setIsRecovering(false);
-        }
         } catch (e) {
           console.error("Failed to recover active session:", e);
           setError("Could not restore the previous session. Please start again.");
@@ -1351,36 +1327,36 @@ export default function Index() {
       let rejectAttemptSaved: ((reason?: unknown) => void) | null = null;
       const attemptSaved = active
         ? new Promise<void>((resolve, reject) => {
-            resolveAttemptSaved = resolve;
-            rejectAttemptSaved = reject;
-          })
+          resolveAttemptSaved = resolve;
+          rejectAttemptSaved = reject;
+        })
         : null;
       const completed = active
         ? await submitAndRecordSpellingAttempt(coachingRequest, {
-            sessionId: active.id,
-            targetWord: word.word,
-            childAttempt,
-            level: lvl,
-            mode: active.modeKey,
-            definitionViewed: supportSnapshot.definitionViewed,
-            exampleViewed: supportSnapshot.exampleViewed,
-            originViewed: supportSnapshot.originViewed,
-            partOfSpeechViewed: supportSnapshot.partOfSpeechViewed ?? false,
-            repeatWordCount: repeatCount,
-            usedVoiceInput,
-          }, streamHandlers, {
-            waitForPreviousPersistence: previousPersistence,
-            onAttemptSaved: () => {
-              attemptSavePendingRef.current = false;
-              if (completedCoaching && !localAttemptApplied) {
-                localAttemptApplied = true;
-                applySuccessfulAttempt(completedCoaching);
-                prefetchNextWord(recentWordsAfterAttempt);
-                setPersistingAttempt(false);
-              }
-              resolveAttemptSaved?.();
-            },
-          })
+          sessionId: active.id,
+          targetWord: word.word,
+          childAttempt,
+          level: lvl,
+          mode: active.modeKey,
+          definitionViewed: supportSnapshot.definitionViewed,
+          exampleViewed: supportSnapshot.exampleViewed,
+          originViewed: supportSnapshot.originViewed,
+          partOfSpeechViewed: supportSnapshot.partOfSpeechViewed ?? false,
+          repeatWordCount: repeatCount,
+          usedVoiceInput,
+        }, streamHandlers, {
+          waitForPreviousPersistence: previousPersistence,
+          onAttemptSaved: () => {
+            attemptSavePendingRef.current = false;
+            if (completedCoaching && !localAttemptApplied) {
+              localAttemptApplied = true;
+              applySuccessfulAttempt(completedCoaching);
+              prefetchNextWord(recentWordsAfterAttempt);
+              setPersistingAttempt(false);
+            }
+            resolveAttemptSaved?.();
+          },
+        })
         : null;
       const res = completed?.coaching ?? await submitSpellingAttempt(coachingRequest, streamHandlers);
       if (completed && attemptSaved) {

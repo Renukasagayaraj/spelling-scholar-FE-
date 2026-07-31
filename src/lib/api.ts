@@ -1,5 +1,11 @@
 import { getAccessToken, supabase } from "@/lib/supabase";
 import { mockNextWord, mockCoaching, mockPronunciationAudio } from "@/lib/mocks";
+import type {
+  ReportPagination,
+  ReportSection,
+  ReportSessionWord,
+  ReportsMock,
+} from "@/lib/reportsMock";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 // Some non-coaching APIs retain preview/local mocks when no backend URL is
@@ -39,6 +45,7 @@ export interface WordData {
   gradeBand: string;
   difficulty: string;
   origin: string;
+  mainOrigin?: string;
   definition: string;
   exampleSentence: string;
   partOfSpeech: string;
@@ -269,7 +276,7 @@ export interface DbWordAttempt {
   part_of_speech_viewed?: boolean;
   repeat_word_count?: number;
   used_voice_input?: boolean;
-  coaching_response?: string | null;
+  coaching_response?: Record<string, unknown> | string | null;
   created_at: string;
   word_catalog_entry?: Partial<WordData> | null;
 }
@@ -278,10 +285,10 @@ export type StartPracticeSessionResult =
   | { action: "created"; sessionId: string }
   | { action: "resume_existing"; sessionId: string }
   | {
-      action: "active_session_conflict";
-      activeSessionId: string;
-      activeMode: string;
-    };
+    action: "active_session_conflict";
+    activeSessionId: string;
+    activeMode: string;
+  };
 
 export interface StartPracticeSessionRequest {
   mode: string;
@@ -1248,6 +1255,7 @@ export interface UserProfile {
   age: number | null;
   grade: string | null;
   spelling_level: string | null;
+  weekly_email_enabled: boolean;
 }
 
 export async function fetchUserProfile(): Promise<UserProfile> {
@@ -1264,6 +1272,7 @@ export async function fetchUserProfile(): Promise<UserProfile> {
       age: 10,
       grade: "5",
       spelling_level: "competition",
+      weekly_email_enabled: false,
     };
     localStorage.setItem("mock_user_profile", JSON.stringify(mock));
     return mock;
@@ -1324,6 +1333,32 @@ export async function fetchUserStatistics(): Promise<DbUserStats[]> {
     }
     throw err;
   }
+}
+
+export type ReportDateRange = "7d" | "30d" | "90d" | "all";
+
+export type ReportSectionResponse<Section extends ReportSection> =
+  Pick<ReportsMock, Section> & { pagination?: ReportPagination };
+
+export async function fetchReports<Section extends ReportSection>(
+  range: ReportDateRange,
+  section: Section,
+  page = 1,
+): Promise<ReportSectionResponse<Section>> {
+  const params = new URLSearchParams({
+    range,
+    section,
+    page: String(page),
+    pageSize: "10",
+    locale: navigator.language || "en-US",
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  });
+  const res = await fetch(`${BASE_URL}/api/reports?${params}`, {
+    headers: await authHeaders(),
+  });
+  if (res.status === 401) throw new UnauthorizedError();
+  if (!res.ok) throw new Error("Failed to fetch report data");
+  return res.json();
 }
 
 // ---------- Word search + word detail ----------
@@ -1407,6 +1442,19 @@ export async function searchWords(
   const res = await fetch(`${BASE_URL}/api/words/search?${params}`);
   if (!res.ok) throw new Error("Failed to search words");
   return res.json();
+}
+
+export async function fetchReportSessionDetails(
+  sessionId: string,
+): Promise<ReportSessionWord[]> {
+  const params = new URLSearchParams({ sessionId });
+  const res = await fetch(`${BASE_URL}/api/reports/session-details?${params}`, {
+    headers: await authHeaders(),
+  });
+  if (res.status === 401) throw new UnauthorizedError();
+  if (!res.ok) throw new Error("Failed to fetch session details");
+  const data = await res.json();
+  return data.words;
 }
 
 export async function fetchWordDetail(word: string): Promise<WordDetail> {
