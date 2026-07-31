@@ -33,7 +33,8 @@ import {
   type ReportSessionWord,
   type ReportsMock,
 } from "@/lib/reportsMock";
-import { fetchReports, fetchReportSessionDetails } from "@/lib/api";
+import { UnauthorizedError, fetchReports, fetchReportSessionDetails } from "@/lib/api";
+import { AccessDenied } from "@/components/AccessDenied";
 
 const RANGES: { key: DateRange; label: string }[] = [
   { key: "7d", label: "Last 7 days" },
@@ -189,6 +190,7 @@ export default function Reports() {
   const [sessionWords, setSessionWords] = useState<Record<string, ReportSessionWord[]>>({});
   const [sessionDetailError, setSessionDetailError] = useState<Record<string, string>>({});
   const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
+  const [requiresSignIn, setRequiresSignIn] = useState(false);
   const section = TAB_SECTIONS[tab];
 
   useEffect(() => {
@@ -202,6 +204,10 @@ export default function Reports() {
         if (data.pagination) setSessionPagination(data.pagination);
       })
       .catch((reason: unknown) => {
+        if (reason instanceof UnauthorizedError) {
+          if (active) setRequiresSignIn(true);
+          return;
+        }
         if (active) setError(reason instanceof Error ? reason.message : "Unable to load reports");
       })
       .finally(() => {
@@ -211,6 +217,8 @@ export default function Reports() {
   }, [range, section, sessionPage]);
 
   const d = source[section] ? source as ReportsMock : null;
+
+  if (requiresSignIn) return <AccessDenied />;
 
   const changeRange = (nextRange: DateRange) => {
     setRange(nextRange);

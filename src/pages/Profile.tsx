@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
     User as UserIcon,
     Sparkles,
@@ -18,6 +18,7 @@ import { createStripePortalSession, createStripeCheckoutSession } from "@/lib/ap
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { Header } from "@/components/Header";
+import { AccessDenied } from "@/components/AccessDenied";
 import { type ThemeKey } from "@/components/ThemePicker";
 
 export default function Profile() {
@@ -37,7 +38,6 @@ export default function Profile() {
     } = useAuth();
     const [busy, setBusy] = useState(false);
     const [stripeAction, setStripeAction] = useState<"billing" | "checkout" | null>(null);
-    const navigate = useNavigate();
 
     const [fullName, setFullName] = useState("");
     const [childId, setChildId] = useState("");
@@ -183,31 +183,7 @@ export default function Profile() {
 
     // If not authenticated, prompt to go home to sign in or display a helpful message
     if (!user) {
-        return (
-            <div className="min-h-screen bg-[#fcfbf7] dark:bg-background flex items-center justify-center p-4">
-                <motion.div
-                    initial={{ opacity: 0, y: 15 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="max-w-md w-full bg-card border border-border/60 rounded-2xl p-8 shadow-xl text-center space-y-6"
-                >
-                    <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto">
-                        <UserIcon className="h-8 w-8" />
-                    </div>
-                    <div className="space-y-2">
-                        <h2 className="text-2xl font-serif font-bold text-[#1e3a5f]">Access Denied</h2>
-                        <p className="text-muted-foreground text-sm">
-                            Please sign in to view and manage your account subscription.
-                        </p>
-                    </div>
-                    <button
-                        onClick={() => navigate("/")}
-                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl py-3 font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md active:scale-[0.98]"
-                    >
-                        <ArrowLeft className="h-4 w-4" /> Go to Home page to Sign In
-                    </button>
-                </motion.div>
-            </div>
-        );
+        return <AccessDenied />;
     }
 
 
