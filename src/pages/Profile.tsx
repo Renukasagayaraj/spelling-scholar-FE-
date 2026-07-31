@@ -426,7 +426,7 @@ export default function Profile() {
                                         onClick={() => handleWeeklyEmailToggle(!(profile?.weekly_email_enabled ?? false))}
                                         className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${(profile?.weekly_email_enabled ?? false) ? "bg-primary" : "bg-muted"}`}
                                     >
-                                        <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${(profile?.weekly_email_enabled ?? false) ? "translate-x-6" : "translate-x-1"}`} />
+                                        <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${(profile?.weekly_email_enabled ?? false) ? "right-1" : "left-1"}`} />
                                         <span className="sr-only">Toggle weekly progress email</span>
                                     </button>
                                 </div>
