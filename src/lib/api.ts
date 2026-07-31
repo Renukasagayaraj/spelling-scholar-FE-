@@ -910,6 +910,7 @@ function createStreamAssembler(handlers: SpellingCoachStreamHandlers) {
           wordTeaching?: Partial<CoachingResponse["wordTeaching"]>;
           wordBreakdown?: CoachingResponse["wordBreakdown"];
           conceptLabels?: CoachingResponse["conceptLabels"];
+          sayAloudTip?: string;
         };
       }).payload;
       result = {
@@ -919,6 +920,10 @@ function createStreamAssembler(handlers: SpellingCoachStreamHandlers) {
           : result.wordTeaching,
         wordBreakdown: payload.wordBreakdown ?? result.wordBreakdown,
         conceptLabels: payload.conceptLabels ?? result.conceptLabels,
+        coachingText: {
+          ...result.coachingText,
+          sayAloudTip: payload.sayAloudTip?.trim() || result.coachingText.sayAloudTip,
+        },
       };
       handlers.onPrecomputed?.(result);
       return false;
