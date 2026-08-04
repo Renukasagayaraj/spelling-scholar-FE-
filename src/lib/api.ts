@@ -61,6 +61,7 @@ export interface SupportsUsed {
 }
 
 export type SpellingCoachStreamSection =
+  | "short_feedback"
   | "miss_analysis"
   | "explanation"
   | "memory_tip";
@@ -667,6 +668,7 @@ type ParsedSseEvent = {
 };
 
 const STREAM_SECTION_KEYS: SpellingCoachStreamSection[] = [
+  "short_feedback",
   "miss_analysis",
   "explanation",
   "memory_tip",
@@ -858,6 +860,15 @@ function createStreamAssembler(handlers: SpellingCoachStreamHandlers) {
   ) => {
     const current = requireResult("section text");
     switch (section) {
+      case "short_feedback":
+        result = {
+          ...current,
+          coachingText: {
+            ...current.coachingText,
+            shortFeedback: text.trim(),
+          },
+        };
+        break;
       case "miss_analysis":
         result = {
           ...current,
@@ -982,6 +993,22 @@ function createStreamAssembler(handlers: SpellingCoachStreamHandlers) {
         timingMs?: number;
       };
       switch (sectionEvent.section) {
+        case "short_feedback": {
+          const payload = sectionEvent.payload as { shortFeedback?: string };
+          result = {
+            ...result,
+            coachingText: {
+              ...result.coachingText,
+              shortFeedback: payload.shortFeedback ?? result.coachingText.shortFeedback,
+            },
+          };
+          setSectionState(sectionEvent.section, {
+            status: "complete",
+            text: result.coachingText.shortFeedback,
+            timingMs: sectionEvent.timingMs ?? 0,
+          });
+          break;
+        }
         case "miss_analysis": {
           const payload = sectionEvent.payload as {
             missAnalysis?: CoachingResponse["missAnalysis"];

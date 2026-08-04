@@ -68,9 +68,11 @@ export function CoachingResult({ result, level, targetWord }: CoachingResultProp
   const isLevel1 = level === 1;
   const { correctness, missAnalysis, wordTeaching, errorRelevance, teachingDecision, coachingText, wordBreakdown, conceptLabels, nextStep } = result;
   const isCorrect = correctness.isCorrect;
+  const shortFeedbackState = result.streamSections?.short_feedback;
   const missState = result.streamSections?.miss_analysis;
   const explanationState = result.streamSections?.explanation;
   const memoryTipState = result.streamSections?.memory_tip;
+  const memoryTip = coachingText.memoryTip.trim();
 
   return (
     <div className="space-y-3">
@@ -86,9 +88,16 @@ export function CoachingResult({ result, level, targetWord }: CoachingResultProp
           {isCorrect ? <CheckCircle2 className="h-6 w-6 text-success" /> : <XCircle className="h-6 w-6 text-secondary" />}
           <span className="font-display text-lg">{isCorrect ? "Correct!" : "Not quite!"}</span>
         </div>
-        {coachingText.shortFeedback && (
-          <p className="text-sm text-muted-foreground">{coachingText.shortFeedback}</p>
-        )}
+        <div className="min-h-5 text-sm text-muted-foreground">
+          {coachingText.shortFeedback ? (
+            <p>{coachingText.shortFeedback}</p>
+          ) : shortFeedbackState?.status === "idle" || shortFeedbackState?.status === "streaming" ? (
+            <div className="flex items-center justify-center gap-1.5">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span>Creating feedback…</span>
+            </div>
+          ) : null}
+        </div>
       </motion.div>
 
       {wordBreakdown?.displayChunks?.length > 0 && (
@@ -208,9 +217,9 @@ export function CoachingResult({ result, level, targetWord }: CoachingResultProp
         </Section>
       )}
 
-      {(coachingText.memoryTip || (memoryTipState && memoryTipState.status !== "complete")) && (
+      {!isLevel1 && !isCorrect && (memoryTip || (memoryTipState && memoryTipState.status !== "complete")) && (
         <Section icon={Lightbulb} title="Memory Tip">
-          <RuntimeText state={memoryTipState} text={coachingText.memoryTip} italic />
+          <RuntimeText state={memoryTipState} text={memoryTip} italic />
         </Section>
       )}
 

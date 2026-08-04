@@ -547,7 +547,7 @@ export default function Index() {
         localStorage.setItem("active_sessions_map", JSON.stringify(map));
       }
 
-      let result = await startPracticeSession(
+      const result = await startPracticeSession(
         buildSessionRequest(mode, options?.forceCloseCurrent ?? false),
       );
 
@@ -1165,10 +1165,33 @@ export default function Index() {
     const isCurrentWord = () => wordStateVersionRef.current === wordStateVersion;
     let completedCoaching: CoachingResponse | null = null;
     let localAttemptApplied = false;
+    let celebrationPlayed = false;
     const recentWordsAfterAttempt = [
       ...session.recentlyPracticedWords.slice(-9),
       word.word,
     ];
+
+    const celebrateCorrectAnswer = () => {
+      if (celebrationPlayed || !isCurrentWord()) return;
+      celebrationPlayed = true;
+
+      if (lvl !== 3) playCheer();
+      if (lvl === 1) {
+        const fire = (origin: { x: number; y: number }) =>
+          confetti({
+            particleCount: 80,
+            spread: 70,
+            startVelocity: 45,
+            origin,
+            zIndex: 9999,
+            colors: ["#f59e0b", "#10b981", "#6366f1", "#ef4444", "#eab308"],
+          });
+        fire({ x: 0.2, y: 0.7 });
+        fire({ x: 0.5, y: 0.6 });
+        fire({ x: 0.8, y: 0.7 });
+        setTimeout(() => fire({ x: 0.5, y: 0.5 }), 200);
+      }
+    };
 
     const applySuccessfulAttempt = (res: CoachingResponse) => {
       setHistory((h) => {
@@ -1192,23 +1215,8 @@ export default function Index() {
       }
 
       if (res.correctness?.isCorrect) {
-        if (lvl !== 3) playCheer();
+        celebrateCorrectAnswer();
         rewards.recordCorrect(activeSessionMode || practiceMode, lvl);
-        if (lvl === 1) {
-          const fire = (origin: { x: number; y: number }) =>
-            confetti({
-              particleCount: 80,
-              spread: 70,
-              startVelocity: 45,
-              origin,
-              zIndex: 9999,
-              colors: ["#f59e0b", "#10b981", "#6366f1", "#ef4444", "#eab308"],
-            });
-          fire({ x: 0.2, y: 0.7 });
-          fire({ x: 0.5, y: 0.6 });
-          fire({ x: 0.8, y: 0.7 });
-          setTimeout(() => fire({ x: 0.5, y: 0.5 }), 200);
-        }
       } else {
         rewards.recordIncorrect(activeSessionMode || practiceMode, lvl);
       }
@@ -1292,8 +1300,10 @@ export default function Index() {
       };
       const streamHandlers: SpellingCoachStreamHandlers = {
         signal: controller.signal,
-        onMeta: (_meta, partialResult) => {
-          if (isCurrentWord()) setResult(partialResult);
+        onMeta: (meta, partialResult) => {
+          if (!isCurrentWord()) return;
+          setResult(partialResult);
+          if (meta.isCorrect) celebrateCorrectAnswer();
         },
         onPrecomputed: (partialResult) => {
           if (isCurrentWord()) setResult(partialResult);
@@ -1841,7 +1851,7 @@ export default function Index() {
                       </div>
                     </div>
                   </div>
-                  <CoachingResult result={result} level={level} targetWord={word.word} />
+                  <CoachingResult result={result} level={effectiveLevel()} targetWord={word.word} />
                   {streamErrors.length > 0 && (
                     <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground/80">
                       Some coaching details could not be loaded. You can continue with the feedback shown.
