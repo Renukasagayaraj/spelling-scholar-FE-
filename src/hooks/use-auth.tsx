@@ -100,14 +100,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const updated = await updateUserProfile(updates);
       setProfile(updated);
       return { error: null };
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to update user profile:", err);
-      return { error: err?.message || "Failed to update profile." };
+      return { error: (err instanceof Error ? err.message : null) || "Failed to update profile." };
     }
   };
 
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       refreshSubscription();
       refreshProfile();
     } else {
@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setBillingInterval(null);
       setProfile(null);
     }
-  }, [user, refreshSubscription, refreshProfile]);
+  }, [user?.id, refreshSubscription, refreshProfile]);
 
   useEffect(() => {
     if (!supabaseConfigured) {

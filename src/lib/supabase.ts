@@ -6,7 +6,6 @@ const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
 export const supabaseConfigured = Boolean(url && key);
 
 if (!supabaseConfigured) {
-  // eslint-disable-next-line no-console
   console.warn(
     "[supabase] Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY — auth features disabled.",
   );

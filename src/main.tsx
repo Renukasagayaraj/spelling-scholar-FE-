@@ -10,7 +10,6 @@ Sentry.init({
   release: import.meta.env.VITE_APP_VERSION || "dev",
   sendDefaultPii: true,
   environment: import.meta.env.VITE_APP_ENV || import.meta.env.MODE,
-  autoSessionTracking: true
 });
 
 // Expose Sentry globally so we can test it from the browser developer console

@@ -37,6 +37,12 @@ export function DebugPanel({
 }: DebugPanelProps) {
   const [open, setOpen] = useState(false);
 
+  let displayWordData: Partial<WordData> | null = wordData;
+  if (wordData && !response) {
+    const { word: _omitted, ...rest } = wordData;
+    displayWordData = rest;
+  }
+
   return (
     <div className="mt-6">
       <button
@@ -69,7 +75,7 @@ export function DebugPanel({
           )}
           <div>
             <strong>Word Meta:</strong>
-            <pre className="mt-1 whitespace-pre-wrap">{JSON.stringify(wordData, null, 2)}</pre>
+            <pre className="mt-1 whitespace-pre-wrap">{JSON.stringify(displayWordData, null, 2)}</pre>
           </div>
           <div>
             <strong>Supports Sent:</strong>

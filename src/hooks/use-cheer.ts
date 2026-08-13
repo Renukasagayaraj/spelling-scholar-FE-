@@ -5,8 +5,8 @@ const STORAGE_KEY = "spelling-coach-sound-enabled";
 
 export function useCheer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  let profile: any = undefined;
-  let updateProfile: any = undefined;
+  let profile: ReturnType<typeof useAuth>["profile"] | undefined = undefined;
+  let updateProfile: ReturnType<typeof useAuth>["updateProfile"] | undefined = undefined;
   try {
     const auth = useAuth();
     profile = auth.profile;

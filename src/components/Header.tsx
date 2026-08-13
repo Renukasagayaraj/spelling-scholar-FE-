@@ -4,7 +4,6 @@ import beePng from "@/assets/bee.png";
 import { AuthMenu } from "@/components/AuthMenu";
 import { ThemePicker, type ThemeKey } from "@/components/ThemePicker";
 import { useCheer } from "@/hooks/use-cheer";
-import { useAuth } from "@/hooks/use-auth";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface HeaderProps {
@@ -25,7 +24,6 @@ export function Header({
     maxWidthClass = "max-w-6xl",
 }: HeaderProps) {
     const { soundEnabled, toggleSound } = useCheer();
-    const { user, loading } = useAuth();
 
     const logoContent = (
         <>
@@ -49,14 +47,12 @@ export function Header({
                 </button>
 
                 <div className="flex items-center gap-1">
-                    {!loading && !user && (
-                        <Link
-                            to="/pricing"
-                            className="hidden sm:inline-flex font-medium px-3 py-1.5 rounded-lg text-foreground hover:text-primary transition-colors text-base"
+                     <a
+                        href="/pricing"
+                        className="hidden sm:inline-flex font-medium px-3 py-1.5 rounded-lg text-foreground hover:text-primary transition-colors text-base"
                         >
-                            Pricing
-                        </Link>
-                    )}
+                        Pricing
+                    </a>
                     <AuthMenu />
                     {showSound && (
                         <Tooltip>

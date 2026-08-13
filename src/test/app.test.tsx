@@ -2,7 +2,10 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/hooks/use-auth", () => ({ AuthProvider: ({ children }: { children: ReactNode }) => children }));
+vi.mock("@/hooks/use-auth", () => ({ 
+  AuthProvider: ({ children }: { children: ReactNode }) => children,
+  useAuth: () => ({ user: { id: "mock-user" }, loading: false })
+}));
 vi.mock("@/components/ui/toaster", () => ({ Toaster: () => null }));
 vi.mock("@/components/ui/sonner", () => ({ Toaster: () => null }));
 vi.mock("@/components/ui/tooltip", () => ({ TooltipProvider: ({ children }: { children: ReactNode }) => children }));

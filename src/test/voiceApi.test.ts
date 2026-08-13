@@ -39,17 +39,17 @@ describe("voice API", () => {
     const payload = { intent: "spelling_attempt", parsedAttempt: "rhythm", shouldAutoSubmit: true };
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => payload });
     vi.stubGlobal("fetch", fetchMock);
-    await expect(voiceRespond("rhythm", "r h y t h m")).resolves.toEqual(payload);
+    await expect(voiceRespond({ challengeId: "chal_1", sessionId: "sess_1" }, "r h y t h m")).resolves.toEqual(payload);
     expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/\/api\/voice\/respond$/), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetWord: "rhythm", utterance: "r h y t h m", includeAudio: true }),
+      body: JSON.stringify({ challengeId: "chal_1", sessionId: "sess_1", utterance: "r h y t h m", includeAudio: true }),
     });
   });
 
   it("rejects failed voice response requests", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
-    await expect(voiceRespond("word", "utterance")).rejects.toThrow("Voice respond failed");
+    await expect(voiceRespond({ challengeId: "chal_1", sessionId: "sess_1" }, "utterance")).rejects.toThrow("Voice respond failed");
   });
 
   it("decodes base64 with default and custom MIME types", async () => {

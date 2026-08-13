@@ -1,11 +1,5 @@
 import { getAccessToken, supabase } from "@/lib/supabase";
 import { mockNextWord, mockCoaching, mockPronunciationAudio } from "@/lib/mocks";
-import type {
-  ReportPagination,
-  ReportSection,
-  ReportSessionWord,
-  ReportsMock,
-} from "@/lib/reportsMock";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 // Some non-coaching APIs retain preview/local mocks when no backend URL is
@@ -19,7 +13,7 @@ export class UnauthorizedError extends Error {
   }
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
+export async function authHeaders(): Promise<Record<string, string>> {
   const token = await getAccessToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
@@ -45,12 +39,14 @@ export interface WordData {
   gradeBand: string;
   difficulty: string;
   origin: string;
-  mainOrigin?: string;
   definition: string;
   exampleSentence: string;
   partOfSpeech: string;
   pronunciation: string;
   patterns: string[];
+  /** Returned by the backend when a sessionId was passed to /api/words/next.
+   *  Must be sent back in pronunciation and submission requests in place of word. */
+  challengeId?: string;
 }
 
 export interface SupportsUsed {
@@ -98,20 +94,21 @@ export interface SessionContext {
   mode: string;
   previousAttemptsOnThisWord: number;
   previousMissPatterns: string[];
-  recentlyPracticedWords: string[];
 }
 
 export interface CoachingRequest {
-  targetWord: string;
+  targetWord?: string;
+  challengeId?: string;
   childAttempt: string;
-  childProfile: ChildProfile;
-  supportsUsed: SupportsUsed;
-  sessionContext: SessionContext;
-  definition?: string;
-  exampleSentence?: string;
-  origin?: string;
-  partOfSpeech?: string;
   level?: number;
+  mode: string;
+  definitionViewed: boolean;
+  exampleViewed: boolean;
+  originViewed: boolean;
+  partOfSpeechViewed: boolean;
+  repeatWordCount: number;
+  usedVoiceInput: boolean;
+  sessionId?: string;
 }
 
 export interface CoachingResponse {
@@ -192,6 +189,9 @@ export interface SpellingCoachStreamMeta {
   isCorrect: boolean;
   timingMs: number;
   targetWordMasked: boolean;
+  targetWord?: string;
+  sayAloudTip?: string;
+  shortFeedback?: string;
   missAnalysis?: CoachingResponse["missAnalysis"];
 }
 
@@ -215,6 +215,8 @@ export interface SpellingCoachSectionChunkEvent extends SpellingCoachSectionEven
 
 export interface SpellingCoachStreamDone {
   complete: true;
+  /** The resolved target word, revealed by the backend after evaluation. */
+  targetWord?: string;
   timings: {
     metaMs: number;
     precomputedMs: number;
@@ -277,7 +279,7 @@ export interface DbWordAttempt {
   part_of_speech_viewed?: boolean;
   repeat_word_count?: number;
   used_voice_input?: boolean;
-  coaching_response?: Record<string, unknown> | string | null;
+  coaching_response?: string | null;
   created_at: string;
   word_catalog_entry?: Partial<WordData> | null;
 }
@@ -286,10 +288,10 @@ export type StartPracticeSessionResult =
   | { action: "created"; sessionId: string }
   | { action: "resume_existing"; sessionId: string }
   | {
-    action: "active_session_conflict";
-    activeSessionId: string;
-    activeMode: string;
-  };
+      action: "active_session_conflict";
+      activeSessionId: string;
+      activeMode: string;
+    };
 
 export interface StartPracticeSessionRequest {
   mode: string;
@@ -393,7 +395,8 @@ export interface NextWordParams {
   level?: number;
   customListId?: string;
   foreignOrigin?: string;
-  exclude?: string[];
+  /** Pass the active sessionId to enable secure challengeId-based word tracking. */
+  sessionId?: string;
 }
 
 export async function fetchNextWord(
@@ -415,11 +418,11 @@ export async function fetchNextWord(
   } else if (opts.level != null) {
     params.set("level", String(opts.level));
   }
-  if (opts.exclude && opts.exclude.length > 0) {
-    params.set("exclude", opts.exclude.join(","));
+  if (opts.sessionId) {
+    params.set("sessionId", opts.sessionId);
   }
-  // Custom list practice requires auth; level/foreignOrigin are public.
-  const headers = opts.customListId ? await authHeaders() : {};
+  // Custom list practice or session-linked requests require auth.
+  const headers = (opts.customListId || opts.sessionId) ? await authHeaders() : {};
   try {
     const res = await fetch(`${BASE_URL}/api/words/next?${params}`, { headers });
     if (res.status === 401) await handle401();
@@ -449,42 +452,34 @@ export async function startPracticeSession(
   return res.json();
 }
 
-export async function fetchSessionAttempts(sessionId: string): Promise<DbWordAttempt[]> {
-  try {
-    const res = await fetch(
-      `${BASE_URL}/api/sessions/attempts?sessionId=${encodeURIComponent(sessionId)}`,
-      { headers: await authHeaders() },
-    );
-    if (res.status === 401) await handle401();
-    if (!res.ok) throw new Error("Failed to fetch session attempts");
-    const data = await res.json();
-    return data.attempts;
-  } catch (err) {
-    if (USE_MOCK_FALLBACK && err instanceof TypeError) {
-      return [];
-    }
-    throw err;
-  }
-}
-
 export async function fetchPracticeSession(
   sessionId: string,
 ): Promise<PracticeSessionRecord | null> {
-  try {
-    const res = await fetch(
-      `${BASE_URL}/api/sessions/current?sessionId=${encodeURIComponent(sessionId)}`,
-      { headers: await authHeaders() },
-    );
-    if (res.status === 401) await handle401();
-    if (!res.ok) throw new Error("Failed to refresh practice session");
-    const data = await res.json();
-    return data.session;
-  } catch (err) {
-    if (USE_MOCK_FALLBACK && err instanceof TypeError) {
-      return null;
-    }
-    throw err;
+  if (USE_MOCK_FALLBACK) {
+    return null;
   }
+  const res = await fetch(
+    `${BASE_URL}/api/sessions/current?sessionId=${encodeURIComponent(sessionId)}`,
+    { headers: await authHeaders() },
+  );
+  if (res.status === 401) await handle401();
+  if (!res.ok) throw new Error("Failed to refresh practice session");
+  const data = await res.json();
+  return data.session;
+}
+
+export async function fetchSessionAttempts(sessionId: string): Promise<DbWordAttempt[]> {
+  if (USE_MOCK_FALLBACK) {
+    return [];
+  }
+  const res = await fetch(
+    `${BASE_URL}/api/sessions/attempts?sessionId=${encodeURIComponent(sessionId)}`,
+    { headers: await authHeaders() },
+  );
+  if (res.status === 401) await handle401();
+  if (!res.ok) throw new Error("Failed to fetch session attempts");
+  const data = await res.json();
+  return data.attempts;
 }
 
 export async function recordWordAttempt(body: RecordAttemptBody): Promise<string> {
@@ -649,18 +644,26 @@ export async function importCustomWordFile(
   throw new Error("The file import is taking longer than expected. Please try again.");
 }
 
-export async function fetchPronunciationAudio(word: string): Promise<string> {
+export async function fetchPronunciationAudio(
+  params: { challengeId: string; sessionId: string },
+): Promise<string> {
   try {
-    const res = await fetch(`${BASE_URL}/api/words/${encodeURIComponent(word)}/pronunciation`);
+    const urlParams = new URLSearchParams({
+      challengeId: params.challengeId,
+      sessionId: params.sessionId,
+    });
+    const url = `${BASE_URL}/api/words/pronunciation?${urlParams}`;
+    const res = await fetch(url, { headers: await authHeaders() });
     if (res.status === 401) await handle401();
     if (!res.ok) throw new Error("Failed to fetch pronunciation");
     const blob = await res.blob();
     return URL.createObjectURL(blob);
   } catch (err) {
-    if (USE_MOCK_FALLBACK && err instanceof TypeError) return mockPronunciationAudio(word);
+    if (USE_MOCK_FALLBACK && err instanceof TypeError) return mockPronunciationAudio(params.challengeId);
     throw err;
   }
 }
+
 
 type ParsedSseEvent = {
   event: string;
@@ -865,7 +868,7 @@ function createStreamAssembler(handlers: SpellingCoachStreamHandlers) {
           ...current,
           coachingText: {
             ...current.coachingText,
-            shortFeedback: text.trim(),
+            shortFeedback: text,
           },
         };
         break;
@@ -884,7 +887,6 @@ function createStreamAssembler(handlers: SpellingCoachStreamHandlers) {
           coachingText: {
             ...current.coachingText,
             fullExplanation: text,
-            shortFeedback: current.coachingText.shortFeedback || text,
           },
         };
         break;
@@ -910,6 +912,17 @@ function createStreamAssembler(handlers: SpellingCoachStreamHandlers) {
           missAnalysis: meta.missAnalysis,
         };
       }
+      const metaExtra = meta as Record<string, unknown>;
+      if (meta.sayAloudTip || metaExtra["shortFeedback"]) {
+        result = {
+          ...result,
+          coachingText: {
+            ...result.coachingText,
+            ...(meta.sayAloudTip ? { sayAloudTip: meta.sayAloudTip } : {}),
+            ...(metaExtra["shortFeedback"] ? { shortFeedback: metaExtra["shortFeedback"] as string } : {}),
+          },
+        };
+      }
       handlers.onMeta?.(meta, result);
       return false;
     }
@@ -921,7 +934,6 @@ function createStreamAssembler(handlers: SpellingCoachStreamHandlers) {
           wordTeaching?: Partial<CoachingResponse["wordTeaching"]>;
           wordBreakdown?: CoachingResponse["wordBreakdown"];
           conceptLabels?: CoachingResponse["conceptLabels"];
-          sayAloudTip?: string;
         };
       }).payload;
       result = {
@@ -931,10 +943,6 @@ function createStreamAssembler(handlers: SpellingCoachStreamHandlers) {
           : result.wordTeaching,
         wordBreakdown: payload.wordBreakdown ?? result.wordBreakdown,
         conceptLabels: payload.conceptLabels ?? result.conceptLabels,
-        coachingText: {
-          ...result.coachingText,
-          sayAloudTip: payload.sayAloudTip?.trim() || result.coachingText.sayAloudTip,
-        },
       };
       handlers.onPrecomputed?.(result);
       return false;
@@ -993,22 +1001,6 @@ function createStreamAssembler(handlers: SpellingCoachStreamHandlers) {
         timingMs?: number;
       };
       switch (sectionEvent.section) {
-        case "short_feedback": {
-          const payload = sectionEvent.payload as { shortFeedback?: string };
-          result = {
-            ...result,
-            coachingText: {
-              ...result.coachingText,
-              shortFeedback: payload.shortFeedback ?? result.coachingText.shortFeedback,
-            },
-          };
-          setSectionState(sectionEvent.section, {
-            status: "complete",
-            text: result.coachingText.shortFeedback,
-            timingMs: sectionEvent.timingMs ?? 0,
-          });
-          break;
-        }
         case "miss_analysis": {
           const payload = sectionEvent.payload as {
             missAnalysis?: CoachingResponse["missAnalysis"];
@@ -1124,7 +1116,7 @@ export async function submitSpellingAttempt(
   const assembler = createStreamAssembler(handlers);
   const res = await fetch(`${BASE_URL}/api/spelling-coach/stream`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify(body),
     signal: handlers.signal,
   });
@@ -1185,6 +1177,7 @@ export async function submitAndRecordSpellingAttempt(
     await options.waitForPreviousPersistence;
     const attemptId = await recordWordAttempt({
       ...attempt,
+      targetWord: done?.targetWord || attempt.targetWord,
       isCorrect: coaching.correctness.isCorrect,
       coachingResponse,
     });
@@ -1287,7 +1280,6 @@ export interface UserProfile {
   age: number | null;
   grade: string | null;
   spelling_level: string | null;
-  weekly_email_enabled: boolean;
 }
 
 export async function fetchUserProfile(): Promise<UserProfile> {
@@ -1304,7 +1296,6 @@ export async function fetchUserProfile(): Promise<UserProfile> {
       age: 10,
       grade: "5",
       spelling_level: "competition",
-      weekly_email_enabled: false,
     };
     localStorage.setItem("mock_user_profile", JSON.stringify(mock));
     return mock;
@@ -1351,46 +1342,16 @@ export interface DbUserStats {
 }
 
 export async function fetchUserStatistics(): Promise<DbUserStats[]> {
-  try {
-    const res = await fetch(`${BASE_URL}/api/users/stats`, {
-      headers: await authHeaders(),
-    });
-    if (res.status === 401) await handle401();
-    if (!res.ok) throw new Error("Failed to fetch user statistics");
-    const data = await res.json();
-    return data.stats;
-  } catch (err) {
-    if (USE_MOCK_FALLBACK && err instanceof TypeError) {
-      return [];
-    }
-    throw err;
+  if (USE_MOCK_FALLBACK) {
+    return [];
   }
-}
-
-export type ReportDateRange = "7d" | "30d" | "90d" | "all";
-
-export type ReportSectionResponse<Section extends ReportSection> =
-  Pick<ReportsMock, Section> & { pagination?: ReportPagination };
-
-export async function fetchReports<Section extends ReportSection>(
-  range: ReportDateRange,
-  section: Section,
-  page = 1,
-): Promise<ReportSectionResponse<Section>> {
-  const params = new URLSearchParams({
-    range,
-    section,
-    page: String(page),
-    pageSize: "10",
-    locale: navigator.language || "en-US",
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-  });
-  const res = await fetch(`${BASE_URL}/api/reports?${params}`, {
+  const res = await fetch(`${BASE_URL}/api/users/stats`, {
     headers: await authHeaders(),
   });
-  if (res.status === 401) throw new UnauthorizedError();
-  if (!res.ok) throw new Error("Failed to fetch report data");
-  return res.json();
+  if (res.status === 401) await handle401();
+  if (!res.ok) throw new Error("Failed to fetch user statistics");
+  const data = await res.json();
+  return data.stats;
 }
 
 // ---------- Word search + word detail ----------
@@ -1474,19 +1435,6 @@ export async function searchWords(
   const res = await fetch(`${BASE_URL}/api/words/search?${params}`);
   if (!res.ok) throw new Error("Failed to search words");
   return res.json();
-}
-
-export async function fetchReportSessionDetails(
-  sessionId: string,
-): Promise<ReportSessionWord[]> {
-  const params = new URLSearchParams({ sessionId });
-  const res = await fetch(`${BASE_URL}/api/reports/session-details?${params}`, {
-    headers: await authHeaders(),
-  });
-  if (res.status === 401) throw new UnauthorizedError();
-  if (!res.ok) throw new Error("Failed to fetch session details");
-  const data = await res.json();
-  return data.words;
 }
 
 export async function fetchWordDetail(word: string): Promise<WordDetail> {

@@ -68,11 +68,10 @@ export function CoachingResult({ result, level, targetWord }: CoachingResultProp
   const isLevel1 = level === 1;
   const { correctness, missAnalysis, wordTeaching, errorRelevance, teachingDecision, coachingText, wordBreakdown, conceptLabels, nextStep } = result;
   const isCorrect = correctness.isCorrect;
-  const shortFeedbackState = result.streamSections?.short_feedback;
   const missState = result.streamSections?.miss_analysis;
+  const shortFeedbackState = result.streamSections?.short_feedback;
   const explanationState = result.streamSections?.explanation;
   const memoryTipState = result.streamSections?.memory_tip;
-  const memoryTip = coachingText.memoryTip.trim();
 
   return (
     <div className="space-y-3">
@@ -88,16 +87,14 @@ export function CoachingResult({ result, level, targetWord }: CoachingResultProp
           {isCorrect ? <CheckCircle2 className="h-6 w-6 text-success" /> : <XCircle className="h-6 w-6 text-secondary" />}
           <span className="font-display text-lg">{isCorrect ? "Correct!" : "Not quite!"}</span>
         </div>
-        <div className="min-h-5 text-sm text-muted-foreground">
-          {coachingText.shortFeedback ? (
-            <p>{coachingText.shortFeedback}</p>
-          ) : shortFeedbackState?.status === "idle" || shortFeedbackState?.status === "streaming" ? (
-            <div className="flex items-center justify-center gap-1.5">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              <span>Creating feedback…</span>
-            </div>
-          ) : null}
-        </div>
+        {!isCorrect && (
+          <div className="text-sm text-muted-foreground mt-1">
+            <RuntimeText state={shortFeedbackState} text={coachingText.shortFeedback?.trim() ?? ""} />
+          </div>
+        )}
+        {isCorrect && coachingText.shortFeedback?.trim() && (
+          <p className="text-sm text-muted-foreground">{coachingText.shortFeedback.trim()}</p>
+        )}
       </motion.div>
 
       {wordBreakdown?.displayChunks?.length > 0 && (
@@ -112,7 +109,7 @@ export function CoachingResult({ result, level, targetWord }: CoachingResultProp
       )}
 
       {/* Teach The Word */}
-      {!isLevel1 && wordTeaching && (
+      {!isLevel1 && wordTeaching?.conceptTeaching?.summary && (
         <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
           <div className="flex items-center gap-2 mb-2">
             <Layers className="h-4 w-4 text-primary" />
@@ -217,9 +214,9 @@ export function CoachingResult({ result, level, targetWord }: CoachingResultProp
         </Section>
       )}
 
-      {!isLevel1 && !isCorrect && (memoryTip || (memoryTipState && memoryTipState.status !== "complete")) && (
+      {!isLevel1 && (coachingText.memoryTip || (memoryTipState && memoryTipState.status !== "complete")) && (
         <Section icon={Lightbulb} title="Memory Tip">
-          <RuntimeText state={memoryTipState} text={memoryTip} italic />
+          <RuntimeText state={memoryTipState} text={coachingText.memoryTip} italic />
         </Section>
       )}
 
