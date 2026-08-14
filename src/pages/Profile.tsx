@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
     User as UserIcon,
     Sparkles,
@@ -18,6 +18,7 @@ import { createStripePortalSession, createStripeCheckoutSession } from "@/lib/ap
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { Header } from "@/components/Header";
+import { AccessDenied } from "@/components/AccessDenied";
 import { type ThemeKey } from "@/components/ThemePicker";
 
 export default function Profile() {
@@ -37,7 +38,6 @@ export default function Profile() {
     } = useAuth();
     const [busy, setBusy] = useState(false);
     const [stripeAction, setStripeAction] = useState<"billing" | "checkout" | null>(null);
-    const navigate = useNavigate();
 
     const [fullName, setFullName] = useState("");
     const [childId, setChildId] = useState("");
@@ -100,6 +100,20 @@ export default function Profile() {
         setTheme(newTheme);
         if (user) {
             await updateProfile({ theme_preference: newTheme });
+        }
+    };
+
+    const handleWeeklyEmailToggle = async (enabled: boolean) => {
+        try {
+            const { error } = await updateProfile({ weekly_email_enabled: enabled });
+            if (error) {
+                toast.error(error);
+                return;
+            }
+            toast.success(enabled ? "Weekly progress emails enabled." : "Weekly progress emails turned off.");
+        } catch (err) {
+            console.error(err);
+            toast.error("Could not update email preferences.");
         }
     };
 
@@ -169,33 +183,8 @@ export default function Profile() {
 
     // If not authenticated, prompt to go home to sign in or display a helpful message
     if (!user) {
-        return (
-            <div className="min-h-screen bg-[#fcfbf7] dark:bg-background flex items-center justify-center p-4">
-                <motion.div
-                    initial={{ opacity: 0, y: 15 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="max-w-md w-full bg-card border border-border/60 rounded-2xl p-8 shadow-xl text-center space-y-6"
-                >
-                    <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto">
-                        <UserIcon className="h-8 w-8" />
-                    </div>
-                    <div className="space-y-2">
-                        <h2 className="text-2xl font-serif font-bold text-[#1e3a5f]">Access Denied</h2>
-                        <p className="text-muted-foreground text-sm">
-                            Please sign in to view and manage your account subscription.
-                        </p>
-                    </div>
-                    <button
-                        onClick={() => navigate("/")}
-                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl py-3 font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md active:scale-[0.98]"
-                    >
-                        <ArrowLeft className="h-4 w-4" /> Go to Home page to Sign In
-                    </button>
-                </motion.div>
-            </div>
-        );
+        return <AccessDenied />;
     }
-
 
     return (
         <div className="min-h-screen">
@@ -289,7 +278,7 @@ export default function Profile() {
                         {/* Right side: Subscription Management */}
                         <div className="md:col-span-2 space-y-6">
                             {/* Profile Details Form */}
-                            <div className="bg-card border border-border/60 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+                            {/* <div className="bg-card border border-border/60 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
                                 <div className="flex items-center gap-2 border-b border-border/50 pb-4">
                                     <div className="p-2 bg-primary/10 text-primary rounded-xl">
                                         <UserIcon className="h-5 w-5" />
@@ -392,6 +381,30 @@ export default function Profile() {
                                         )}
                                     </button>
                                 </form>
+                            </div> */}
+
+                            <div className="bg-card border border-border/60 rounded-2xl p-6 shadow-sm">
+                                <div className="flex items-start justify-between gap-5">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2 text-foreground font-semibold">
+                                            <Mail className="h-5 w-5 text-primary" />
+                                            Weekly progress email
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">
+                                            Send a weekly learning summary to this account email. You can turn this off any time.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={profile?.weekly_email_enabled ?? false}
+                                        onClick={() => handleWeeklyEmailToggle(!(profile?.weekly_email_enabled ?? false))}
+                                        className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${(profile?.weekly_email_enabled ?? false) ? "bg-primary" : "bg-muted"}`}
+                                    >
+                                        <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${(profile?.weekly_email_enabled ?? false) ? "right-1" : "left-1"}`} />
+                                        <span className="sr-only">Toggle weekly progress email</span>
+                                    </button>
+                                </div>
                             </div>
 
                             {subscribed ? (

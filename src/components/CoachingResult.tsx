@@ -69,7 +69,6 @@ export function CoachingResult({ result, level, targetWord }: CoachingResultProp
   const { correctness, missAnalysis, wordTeaching, errorRelevance, teachingDecision, coachingText, wordBreakdown, conceptLabels, nextStep } = result;
   const isCorrect = correctness.isCorrect;
   const missState = result.streamSections?.miss_analysis;
-  const shortFeedbackState = result.streamSections?.short_feedback;
   const explanationState = result.streamSections?.explanation;
   const memoryTipState = result.streamSections?.memory_tip;
 
@@ -87,13 +86,8 @@ export function CoachingResult({ result, level, targetWord }: CoachingResultProp
           {isCorrect ? <CheckCircle2 className="h-6 w-6 text-success" /> : <XCircle className="h-6 w-6 text-secondary" />}
           <span className="font-display text-lg">{isCorrect ? "Correct!" : "Not quite!"}</span>
         </div>
-        {!isCorrect && (
-          <div className="text-sm text-muted-foreground mt-1">
-            <RuntimeText state={shortFeedbackState} text={coachingText.shortFeedback?.trim() ?? ""} />
-          </div>
-        )}
-        {isCorrect && coachingText.shortFeedback?.trim() && (
-          <p className="text-sm text-muted-foreground">{coachingText.shortFeedback.trim()}</p>
+        {coachingText.shortFeedback && (
+          <p className="text-sm text-muted-foreground">{coachingText.shortFeedback}</p>
         )}
       </motion.div>
 
@@ -109,7 +103,7 @@ export function CoachingResult({ result, level, targetWord }: CoachingResultProp
       )}
 
       {/* Teach The Word */}
-      {!isLevel1 && wordTeaching?.conceptTeaching?.summary && (
+      {!isLevel1 && wordTeaching && (
         <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
           <div className="flex items-center gap-2 mb-2">
             <Layers className="h-4 w-4 text-primary" />
@@ -214,7 +208,7 @@ export function CoachingResult({ result, level, targetWord }: CoachingResultProp
         </Section>
       )}
 
-      {!isLevel1 && (coachingText.memoryTip || (memoryTipState && memoryTipState.status !== "complete")) && (
+      {(coachingText.memoryTip || (memoryTipState && memoryTipState.status !== "complete")) && (
         <Section icon={Lightbulb} title="Memory Tip">
           <RuntimeText state={memoryTipState} text={coachingText.memoryTip} italic />
         </Section>

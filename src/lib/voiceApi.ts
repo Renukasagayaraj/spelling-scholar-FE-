@@ -33,18 +33,11 @@ export async function transcribeAudio(blob: Blob, filename = "recording.webm"): 
   return data.text ?? "";
 }
 
-export async function voiceRespond(
-  challenge: { challengeId: string; sessionId: string },
-  utterance: string,
-): Promise<VoiceRespondResult> {
-  const { authHeaders } = await import("./api.js");
+export async function voiceRespond(targetWord: string, utterance: string): Promise<VoiceRespondResult> {
   const res = await fetch(`${BASE_URL}/api/voice/respond`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(await authHeaders()),
-    },
-    body: JSON.stringify({ challengeId: challenge.challengeId, sessionId: challenge.sessionId, utterance, includeAudio: true }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ targetWord, utterance, includeAudio: true }),
   });
   if (!res.ok) throw new Error("Voice respond failed");
   return res.json();

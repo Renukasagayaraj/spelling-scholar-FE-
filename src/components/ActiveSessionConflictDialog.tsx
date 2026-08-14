@@ -14,7 +14,7 @@ interface ActiveSessionConflictDialogProps {
   open: boolean;
   activeMode: string | null;
   requestedMode: string | null;
-  loadingState: "resume" | "startNew" | null;
+  loading: boolean;
   error: string | null;
   onResume: () => void | Promise<void>;
   onStartNew: () => void | Promise<void>;
@@ -25,7 +25,7 @@ export function ActiveSessionConflictDialog({
   open,
   activeMode,
   requestedMode,
-  loadingState,
+  loading,
   error,
   onResume,
   onStartNew,
@@ -39,7 +39,7 @@ export function ActiveSessionConflictDialog({
       <AlertDialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg gap-5 overflow-y-auto rounded-2xl border-border/70 p-5 shadow-2xl sm:p-6">
         <AlertDialogCancel
           onClick={onCancel}
-          disabled={loadingState !== null}
+          disabled={loading}
           className="absolute right-3 top-3 mt-0 h-9 w-9 rounded-full border-0 bg-transparent p-0 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:right-4 sm:top-4"
           aria-label="Close dialog"
         >
@@ -68,10 +68,10 @@ export function ActiveSessionConflictDialog({
               event.preventDefault();
               void onResume();
             }}
-            disabled={loadingState !== null}
+            disabled={loading}
             className="h-11 w-full bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/90"
           >
-            {loadingState === "resume" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Resume Current Session
           </AlertDialogAction>
           <AlertDialogAction
@@ -79,10 +79,10 @@ export function ActiveSessionConflictDialog({
               event.preventDefault();
               void onStartNew();
             }}
-            disabled={loadingState !== null}
+            disabled={loading}
             className="h-11 w-full shadow-sm"
           >
-            {loadingState === "startNew" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Stop Current And Start New
           </AlertDialogAction>
         </div>

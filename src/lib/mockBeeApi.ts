@@ -142,11 +142,11 @@ export type CreateMockBeeRoundResult =
 
 export async function createMockBeeRound(req: CreateRoundRequest): Promise<CreateMockBeeRoundResult> {
   if (USE_MOCK_FALLBACK) {
-    const session = mockCreateRound(req) as Record<string, unknown>;
+    const session: any = mockCreateRound(req);
     Object.defineProperty(session, "action", { value: "created", configurable: true });
-    Object.defineProperty(session, "sessionId", { value: session["id"], configurable: true });
+    Object.defineProperty(session, "sessionId", { value: session.id, configurable: true });
     Object.defineProperty(session, "session", { value: session, configurable: true });
-    return session as CreateMockBeeRoundResult;
+    return session;
   }
   const res = await fetch(`${BASE_URL}/api/mock-bee/sessions`, {
     method: "POST",
@@ -159,13 +159,13 @@ export async function createMockBeeRound(req: CreateRoundRequest): Promise<Creat
   if (data && data.action === "active_session_conflict") {
     return data;
   }
-  const session = (data && data.session ? data.session : data) as Record<string, unknown>;
+  const session: any = data && data.session ? data.session : data;
   if (session && typeof session === "object") {
     Object.defineProperty(session, "action", { value: "created", configurable: true });
-    Object.defineProperty(session, "sessionId", { value: session["id"], configurable: true });
+    Object.defineProperty(session, "sessionId", { value: session.id, configurable: true });
     Object.defineProperty(session, "session", { value: session, configurable: true });
   }
-  return session as CreateMockBeeRoundResult;
+  return session;
 }
 
 export async function getMockBeeSession(id: string): Promise<MockBeeSession> {

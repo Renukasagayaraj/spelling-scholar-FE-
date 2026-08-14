@@ -14,6 +14,7 @@ vi.mock("@/lib/supabase", () => ({
 import {
   UnauthorizedError,
   checkHealth,
+  claimGuestPractice,
   createStripeCheckoutSession,
   createStripePortalSession,
   endPracticeSession,
@@ -45,6 +46,7 @@ const word = {
 
 describe("remaining API endpoints", () => {
   beforeEach(() => {
+    localStorage.clear();
     vi.stubGlobal("fetch", vi.fn());
     auth.getAccessToken.mockReset().mockResolvedValue("access-token");
     auth.getSession.mockReset().mockResolvedValue({ data: { session: null } });
@@ -52,7 +54,10 @@ describe("remaining API endpoints", () => {
     invalidateCustomListsCache();
   });
 
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    localStorage.clear();
+    vi.unstubAllGlobals();
+  });
 
   it("checks health and rejects unhealthy responses", async () => {
     const fetchMock = vi.fn()
@@ -66,12 +71,12 @@ describe("remaining API endpoints", () => {
   it("builds next-word queries with mode precedence, exclusions, auth, and legacy arguments", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(word));
     vi.stubGlobal("fetch", fetchMock);
-    await fetchNextWord({ foreignOrigin: "Old French", customListId: "ignored", level: 3 });
+    await fetchNextWord({ foreignOrigin: "Old French", customListId: "ignored", level: 3, exclude: ["a", "b"] });
     await fetchNextWord({ customListId: "list/one", level: 2 });
     await fetchNextWord(1, "legacy-list");
     await fetchNextWord();
 
-    expect(fetchMock.mock.calls[0][0]).toMatch(/foreignOrigin=Old\+French/);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/foreignOrigin=Old\+French.*exclude=a%2Cb/);
     expect(fetchMock.mock.calls[0][0]).not.toContain("customListId");
     expect(fetchMock.mock.calls[1][0]).toContain("customListId=list%2Fone");
     expect(fetchMock.mock.calls[1][1]).toEqual({ headers: { Authorization: "Bearer access-token" } });
@@ -93,6 +98,33 @@ describe("remaining API endpoints", () => {
     auth.getSession.mockResolvedValue({ data: { session: null } });
     await expect(fetchSessionAttempts("session")).rejects.toBeInstanceOf(UnauthorizedError);
     expect(auth.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a claimed device token and clears one linked to another account", async () => {
+    localStorage.setItem("spelling_coach_guest_token", "device-token");
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ transferredAttempts: 2 }))
+      .mockResolvedValueOnce(jsonResponse(
+        {
+          error: "This device guest identity is linked to a different account.",
+          code: "GUEST_LINKED_TO_DIFFERENT_ACCOUNT",
+        },
+        { ok: false, status: 409 },
+      ));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(claimGuestPractice()).resolves.toBe(2);
+    expect(localStorage.getItem("spelling_coach_guest_token")).toBe("device-token");
+    expect(fetchMock).toHaveBeenNthCalledWith(1, expect.stringContaining("/api/guests/claim"), {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer access-token",
+        "x-guest-token": "device-token",
+      },
+    });
+
+    await expect(claimGuestPractice()).resolves.toBe(0);
+    expect(localStorage.getItem("spelling_coach_guest_token")).toBeNull();
   });
 
   it("starts, fetches, records, refreshes, and ends session data", async () => {
@@ -177,9 +209,9 @@ describe("remaining API endpoints", () => {
       .mockResolvedValueOnce({ ok: true, status: 200, blob: async () => audio })
       .mockResolvedValueOnce(jsonResponse({}, { ok: false, status: 500 }));
     vi.stubGlobal("fetch", fetchMock);
-    await expect(fetchPronunciationAudio({ challengeId: "a/b", sessionId: "sess-1" })).resolves.toBe("blob:pronunciation");
-    expect(fetchMock.mock.calls[0][0]).toContain("challengeId=a%2Fb");
-    await expect(fetchPronunciationAudio({ challengeId: "bad", sessionId: "sess-1" })).rejects.toThrow("Failed to fetch pronunciation");
+    await expect(fetchPronunciationAudio("a/b")).resolves.toBe("blob:pronunciation");
+    expect(fetchMock.mock.calls[0][0]).toContain("a%2Fb");
+    await expect(fetchPronunciationAudio("bad")).rejects.toThrow("Failed to fetch pronunciation");
   });
 
   it("fetches subscription status and creates Stripe sessions", async () => {

@@ -6,7 +6,7 @@ import { transcribeAudio, voiceRespond, base64ToBlob, type VoiceRespondResult } 
 type VoiceState = "idle" | "listening" | "transcribing" | "processing" | "playing" | "error";
 
 interface VoiceMicProps {
-  challenge: { challengeId: string; sessionId: string };
+  targetWord: string;
   disabled?: boolean;
   onSpellingAttempt: (parsed: string) => void;
   onSupportResponse?: (result: VoiceRespondResult) => void;
@@ -23,7 +23,7 @@ const stateLabel: Record<VoiceState, string> = {
   error: "",
 };
 
-export function VoiceMic({ challenge, disabled, onSpellingAttempt, onSupportResponse }: VoiceMicProps) {
+export function VoiceMic({ targetWord, disabled, onSpellingAttempt, onSupportResponse }: VoiceMicProps) {
   const [state, setState] = useState<VoiceState>("idle");
   const [heard, setHeard] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -111,7 +111,7 @@ export function VoiceMic({ challenge, disabled, onSpellingAttempt, onSupportResp
           return;
         }
         setState("processing");
-        const result = await voiceRespond(challenge, transcript);
+        const result = await voiceRespond(targetWord, transcript);
 
         if (result.intent === "spelling_attempt") {
           const parsed = (result.parsedAttempt ?? "").trim();
@@ -166,7 +166,7 @@ export function VoiceMic({ challenge, disabled, onSpellingAttempt, onSupportResp
         setTimeout(() => setState("idle"), 1500);
       }
     },
-    [challenge, onSpellingAttempt, onSupportResponse],
+    [targetWord, onSpellingAttempt, onSupportResponse],
   );
 
   const startRecording = async () => {

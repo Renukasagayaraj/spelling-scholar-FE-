@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   fetchCustomListWords: vi.fn(),
   fetchForeignOriginDetails: vi.fn(),
   fetchPronunciationAudio: vi.fn(),
+  fetchGuestUsage: vi.fn(),
+  claimGuestPractice: vi.fn(),
+  fetchUserStatistics: vi.fn(),
   startPracticeSession: vi.fn(),
   fetchSessionAttempts: vi.fn(),
   submitSpellingAttempt: vi.fn(),
@@ -68,6 +71,9 @@ vi.mock("@/lib/api", async (importOriginal) => {
     fetchCustomListWords: mocks.fetchCustomListWords,
     fetchForeignOriginDetails: mocks.fetchForeignOriginDetails,
     fetchPronunciationAudio: mocks.fetchPronunciationAudio,
+    fetchGuestUsage: mocks.fetchGuestUsage,
+    claimGuestPractice: mocks.claimGuestPractice,
+    fetchUserStatistics: mocks.fetchUserStatistics,
     startPracticeSession: mocks.startPracticeSession,
     fetchSessionAttempts: mocks.fetchSessionAttempts,
     submitSpellingAttempt: mocks.submitSpellingAttempt,
@@ -93,7 +99,7 @@ import MockBee from "@/pages/MockBee";
 import { mockCoaching } from "@/lib/mocks";
 
 const word = {
-  word: "friend", challengeId: "chal_friend", level: "1", gradeBand: "K-2", difficulty: "easy", origin: "Old English",
+  word: "friend", level: "1", gradeBand: "K-2", difficulty: "easy", origin: "Old English",
   definition: "A person you trust.", exampleSentence: "My friend helped me.", partOfSpeech: "noun",
   pronunciation: "frend", patterns: [],
 };
@@ -125,7 +131,6 @@ describe("main application pages", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
-    mocks.submitAndRecordSpellingAttempt.mockRestore();
     mocks.user = null;
     mocks.subscribed = false;
     mocks.fetchForeignOrigins.mockResolvedValue({ origins: [{ origin: "Greek", wordCount: 4 }] });
@@ -133,6 +138,14 @@ describe("main application pages", () => {
     mocks.fetchCustomListWords.mockResolvedValue([word]);
     mocks.fetchForeignOriginDetails.mockResolvedValue({ origin: "Greek", wordCount: 4, words: [word] });
     mocks.fetchPronunciationAudio.mockResolvedValue("blob:word");
+    mocks.fetchGuestUsage.mockResolvedValue({
+      guestToken: "test-guest-token",
+      attemptsUsed: 0,
+      attemptsRemaining: 30,
+      limit: 30,
+    });
+    mocks.claimGuestPractice.mockResolvedValue(0);
+    mocks.fetchUserStatistics.mockResolvedValue([]);
     mocks.fetchNextWord.mockResolvedValue(word);
     mocks.startPracticeSession.mockResolvedValue({ action: "created", sessionId: "practice-1" });
     mocks.fetchSessionAttempts.mockResolvedValue([]);
@@ -171,7 +184,7 @@ describe("main application pages", () => {
     expect(screen.getByText("Choose your level")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Grades 1/ }));
     fireEvent.click(screen.getByRole("button", { name: "Start Session" }));
-    await waitFor(() => expect(mocks.fetchNextWord).toHaveBeenCalledWith(expect.objectContaining({ level: 1 })));
+    await waitFor(() => expect(mocks.fetchNextWord).toHaveBeenCalledWith({ level: 1 }));
     expect(await screen.findByText("Hear the Word")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Type your spelling…")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Definition/ }));
@@ -186,7 +199,7 @@ describe("main application pages", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start Session" }));
     expect(await screen.findByText("Could not load word. Check your connection.")).toBeInTheDocument();
     fireEvent.click(document.querySelector('button[title="Home"]')!);
-    expect(await screen.findByText("Go Back")).toBeInTheDocument();
+    expect(await screen.findByText(/Master every word/)).toBeInTheDocument();
   });
 
   it("submits anonymous spelling with supports, streaming updates, audio, and prefetched next word", async () => {
@@ -199,14 +212,14 @@ describe("main application pages", () => {
       fireEvent.click(screen.getByRole("button", { name: label }));
     }
     fireEvent.click(screen.getByRole("button", { name: "Hear the Word" }));
-    await waitFor(() => expect(mocks.fetchPronunciationAudio).toHaveBeenCalledWith({ challengeId: "chal_friend", sessionId: "practice-1" }));
+    await waitFor(() => expect(mocks.fetchPronunciationAudio).toHaveBeenCalledWith("friend"));
 
     const input = screen.getByPlaceholderText("Type your spelling…");
     fireEvent.change(input, { target: { value: " FREND " } });
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(mocks.submitSpellingAttempt).toHaveBeenCalled());
     expect(mocks.submitSpellingAttempt.mock.calls[0][0]).toMatchObject({
-      challengeId: "chal_friend", childAttempt: "frend", level: 2,
+      targetWord: "friend", childAttempt: "frend", level: 2,
       definitionViewed: true, exampleViewed: true, originViewed: true, partOfSpeechViewed: true,
     });
     expect(await screen.findByText("Not quite!")).toBeInTheDocument();
@@ -290,6 +303,8 @@ describe("main application pages", () => {
       true,
     ));
     window.dispatchEvent(new Event("pageshow"));
+    fireEvent.click(document.querySelector('button[title="Home"]')!);
+    await waitFor(() => expect(mocks.endPracticeSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "practice-1", totalWordsAttempted: 4 })));
   });
 
   it("accepts voice callbacks and celebrates a correct level-one spelling", async () => {
@@ -298,12 +313,16 @@ describe("main application pages", () => {
       definitionViewed: true, exampleViewed: true, originViewed: true,
       partOfSpeechViewed: false, repeatWordCount: 0, usedVoiceInput: true,
     });
-    mocks.user = { id: "user-1", email: "test@example.com" };
     mocks.submitAndRecordSpellingAttempt.mockImplementationOnce(async (_request, _attempt, handlers, options) => {
-      handlers?.onMeta?.({ requestId: "req-1", isCorrect: true, timingMs: 1, targetWordMasked: false, targetWord: "friend" }, correct);
       handlers?.onDone?.(correct, { complete: true, timings: { metaMs: 1, precomputedMs: 1, runtimeCoachingMs: 1, totalMs: 3 } });
-      options?.onAttemptSaved?.("attempt-id");
-      return { coaching: correct, persistence: Promise.resolve({ attemptId: "attempt-id", session: null }) };
+      options?.onAttemptSaved?.("attempt-voice");
+      return {
+        coaching: correct,
+        persistence: Promise.resolve({
+          attemptId: "attempt-voice",
+          session: null,
+        }),
+      };
     });
 
     renderPage(<Index />);
@@ -317,7 +336,7 @@ describe("main application pages", () => {
       fireEvent.click(screen.getByRole("button", { name }));
     }
     fireEvent.click(screen.getByRole("button", { name: "Voice repeat" }));
-    await waitFor(() => expect(mocks.fetchPronunciationAudio).toHaveBeenCalledWith({ challengeId: "chal_friend", sessionId: "practice-1" }));
+    await waitFor(() => expect(mocks.fetchPronunciationAudio).toHaveBeenCalledWith("friend"));
     mocks.fetchPronunciationAudio.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "Voice repeat with audio" }));
     expect(mocks.fetchPronunciationAudio).not.toHaveBeenCalled();
@@ -325,7 +344,7 @@ describe("main application pages", () => {
 
     await waitFor(() => expect(mocks.submitAndRecordSpellingAttempt).toHaveBeenCalledWith(
       expect.objectContaining({ childAttempt: "friend", usedVoiceInput: true }),
-      expect.anything(),
+      expect.objectContaining({ childAttempt: "friend", usedVoiceInput: true }),
       expect.anything(),
       expect.anything(),
     ));
@@ -370,7 +389,6 @@ describe("main application pages", () => {
     await waitFor(() => expect(mocks.startPracticeSession).toHaveBeenCalledWith(expect.objectContaining({ mode: "custom", customListId: "homework", customListName: "Homework" })));
     expect(mocks.fetchNextWord).toHaveBeenCalledWith(expect.objectContaining({ customListId: "homework" }));
     customView.unmount();
-    localStorage.clear();
 
     vi.clearAllMocks();
     mocks.fetchForeignOrigins.mockResolvedValue({ origins: [{ origin: "Greek", wordCount: 4 }] });

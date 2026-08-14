@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -26,7 +26,15 @@ import {
   YAxis,
 } from "recharts";
 import { cn } from "@/lib/utils";
-import { REPORTS_MOCK, type DateRange } from "@/lib/reportsMock";
+import {
+  type DateRange,
+  type ReportPagination,
+  type ReportSection,
+  type ReportSessionWord,
+  type ReportsMock,
+} from "@/lib/reportsMock";
+import { UnauthorizedError, fetchReports, fetchReportSessionDetails } from "@/lib/api";
+import { AccessDenied } from "@/components/AccessDenied";
 
 const RANGES: { key: DateRange; label: string }[] = [
   { key: "7d", label: "Last 7 days" },
@@ -44,6 +52,15 @@ const TABS: { key: TabKey; label: string; Icon: typeof BarChart3 }[] = [
   { key: "sessions", label: "Sessions", Icon: CalendarClock },
   { key: "mockbee", label: "Mock Bee", Icon: Trophy },
 ];
+
+const TAB_SECTIONS: Record<TabKey, ReportSection> = {
+  overview: "overview",
+  miss: "missAnalysis",
+  knowledge: "wordKnowledge",
+  support: "supportUsage",
+  sessions: "sessions",
+  mockbee: "mockBee",
+};
 
 const CHART_COLORS = [
   "hsl(var(--primary))",
@@ -151,11 +168,103 @@ const tooltipStyle = {
   labelStyle: { color: "hsl(var(--foreground))", fontWeight: 600 } as React.CSSProperties,
 };
 
+function downloadReviewCards(round: { id: string; date: string; reviewCards: unknown[] }) {
+  const data = JSON.stringify({ roundId: round.id, date: round.date, reviewCards: round.reviewCards }, null, 2);
+  const url = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `mock-bee-review-${round.id}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function Reports() {
   const [range, setRange] = useState<DateRange>("30d");
   const [tab, setTab] = useState<TabKey>("overview");
-  const d = REPORTS_MOCK;
+  const [source, setSource] = useState<Partial<ReportsMock>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
+  const [sessionPage, setSessionPage] = useState(1);
+  const [sessionPagination, setSessionPagination] = useState<ReportPagination | null>(null);
+  const [sessionWords, setSessionWords] = useState<Record<string, ReportSessionWord[]>>({});
+  const [sessionDetailError, setSessionDetailError] = useState<Record<string, string>>({});
+  const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
+  const [requiresSignIn, setRequiresSignIn] = useState(false);
+  const section = TAB_SECTIONS[tab];
 
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError(null);
+    fetchReports(range, section, section === "sessions" ? sessionPage : 1)
+      .then((data) => {
+        if (!active) return;
+        setSource((current) => ({ ...current, ...data }));
+        if (data.pagination) setSessionPagination(data.pagination);
+      })
+      .catch((reason: unknown) => {
+        if (reason instanceof UnauthorizedError) {
+          if (active) setRequiresSignIn(true);
+          return;
+        }
+        if (active) setError(reason instanceof Error ? reason.message : "Unable to load reports");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [range, section, sessionPage]);
+
+  const d = source[section] ? source as ReportsMock : null;
+
+  if (requiresSignIn) return <AccessDenied />;
+
+  const changeRange = (nextRange: DateRange) => {
+    setRange(nextRange);
+    setSource({});
+    setSessionPage(1);
+    setSessionPagination(null);
+    setExpandedSessionId(null);
+    setSessionWords({});
+  };
+
+  const toggleSession = async (sessionId: string) => {
+    if (expandedSessionId === sessionId) {
+      setExpandedSessionId(null);
+      return;
+    }
+    setExpandedSessionId(sessionId);
+    if (sessionWords[sessionId]) return;
+
+    setLoadingSessionId(sessionId);
+    setSessionDetailError((current) => ({ ...current, [sessionId]: "" }));
+    try {
+      const words = await fetchReportSessionDetails(sessionId);
+      setSessionWords((current) => ({ ...current, [sessionId]: words }));
+    } catch (reason) {
+      setSessionDetailError((current) => ({
+        ...current,
+        [sessionId]: reason instanceof Error
+          ? reason.message
+          : "Unable to load session details",
+      }));
+    } finally {
+      setLoadingSessionId((current) => current === sessionId ? null : current);
+    }
+  };
+
+  // all error keys for miss analysis by level and by mode, for building the stacked bar charts
+  const missLevelKeys = source.missAnalysis
+    ? Array.from(new Set(source.missAnalysis.byLevel.flatMap((row) => Object.keys(row).filter((key) => key !== "level"))))
+    : [];
+  const missModeKeys = source.missAnalysis
+    ? Array.from(new Set(source.missAnalysis.byMode.flatMap((row) => Object.keys(row).filter((key) => key !== "mode"))))
+    : [];
+
+
+    console.log("missLevelKeys", missLevelKeys);
+    console.log("missModeKeys", missModeKeys);
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur-md">
@@ -167,15 +276,15 @@ export default function Reports() {
             <ArrowLeft className="h-4 w-4" /> Back
           </Link>
           <h1 className="text-lg font-display font-semibold text-foreground">Reports</h1>
-          <span className="ml-2 rounded-full bg-warning/15 text-warning px-2 py-0.5 text-[10px] font-semibold">
-            Mock data · V1 preview
+          <span className="ml-2 rounded-full bg-success/15 text-success px-2 py-0.5 text-[10px] font-semibold">
+            Your practice data
           </span>
           <div className="ml-auto flex items-center gap-2">
             <div className="hidden sm:flex items-center rounded-lg border border-border/60 bg-card/60 p-0.5">
               {RANGES.map((r) => (
                 <button
                   key={r.key}
-                  onClick={() => setRange(r.key)}
+                  onClick={() => changeRange(r.key)}
                   className={cn(
                     "px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
                     range === r.key
@@ -211,6 +320,10 @@ export default function Reports() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        {!d && loading && <p className="text-sm text-muted-foreground">Loading your report…</p>}
+        {error && <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{error}</p>}
+        {d && (
+          <>
         {tab === "overview" && (
           <>
             <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
@@ -220,7 +333,7 @@ export default function Reports() {
               <KpiCard label="Incorrect" value={d.overview.totalIncorrect} />
               <KpiCard label="Sessions" value={d.overview.sessionsCompleted} />
               <KpiCard label="Avg / session" value={d.overview.avgAttemptsPerSession} />
-              <KpiCard label="Practice time" value={`${d.overview.practiceTimeMinutes}m`} hint="needs backend tracking" />
+              <KpiCard label="Practice time" value={`${d.overview.practiceTimeMinutes}m`} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -312,10 +425,14 @@ export default function Reports() {
                     <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} />
                     <RTooltip {...tooltipStyle} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="Vowel" stackId="a" fill={CHART_COLORS[0]} />
-                    <Bar dataKey="Silent" stackId="a" fill={CHART_COLORS[1]} />
-                    <Bar dataKey="Double" stackId="a" fill={CHART_COLORS[2]} />
-                    <Bar dataKey="Morphology" stackId="a" fill={CHART_COLORS[3]} />
+                    {missLevelKeys.map((errorType, index) => (
+                      <Bar
+                        key={errorType}
+                        dataKey={errorType}
+                        stackId="a"
+                        fill={CHART_COLORS[index % CHART_COLORS.length]}
+                      />
+                    ))}
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
@@ -328,10 +445,14 @@ export default function Reports() {
                     <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} />
                     <RTooltip {...tooltipStyle} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="Vowel" stackId="a" fill={CHART_COLORS[0]} />
-                    <Bar dataKey="Silent" stackId="a" fill={CHART_COLORS[1]} />
-                    <Bar dataKey="Double" stackId="a" fill={CHART_COLORS[2]} />
-                    <Bar dataKey="Morphology" stackId="a" fill={CHART_COLORS[3]} />
+                    {missModeKeys.map((errorType, index) => (
+                      <Bar
+                        key={errorType}
+                        dataKey={errorType}
+                        stackId="a"
+                        fill={CHART_COLORS[index % CHART_COLORS.length]}
+                      />
+                    ))}
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
@@ -351,6 +472,20 @@ export default function Reports() {
                 r.level,
               ])}
             />
+            {/* <TableCard
+              title="Recent missed words"
+              subtitle="Most recent 20 distinct incorrect target words"
+              headers={["Target", "Attempt", "Primary error", "Secondary", "Date", "Mode", "Level"]}
+              rows={d.missAnalysis.recentMissedWords.map((r) => [
+                <span className="font-mono font-semibold">{r.target}</span>,
+                <span className="font-mono text-destructive line-through">{r.attempt}</span>,
+                r.primary,
+                r.secondary.join(", ") || "—",
+                r.date,
+                r.mode,
+                r.level,
+              ])}
+            /> */}
           </>
         )}
 
@@ -462,7 +597,7 @@ export default function Reports() {
               <KpiCard label="Example viewed" value={d.supportUsage.example} />
               <KpiCard label="Origin viewed" value={d.supportUsage.origin} />
               <KpiCard label="Part of speech viewed" value={d.supportUsage.partOfSpeech} />
-              <KpiCard label="Repeat word" value={d.supportUsage.repeat} />
+              <KpiCard label="Attempts replayed" value={d.supportUsage.repeat} />
               <KpiCard label="Voice input" value={d.supportUsage.voice} />
             </div>
 
@@ -475,10 +610,12 @@ export default function Reports() {
                     <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} />
                     <RTooltip {...tooltipStyle} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="definition" stackId="a" fill={CHART_COLORS[0]} />
-                    <Bar dataKey="example" stackId="a" fill={CHART_COLORS[1]} />
-                    <Bar dataKey="origin" stackId="a" fill={CHART_COLORS[2]} />
-                    <Bar dataKey="repeat" stackId="a" fill={CHART_COLORS[3]} />
+                    <Bar dataKey="definition" name="Definition" stackId="a" fill={CHART_COLORS[0]} />
+                    <Bar dataKey="example" name="Example" stackId="a" fill={CHART_COLORS[1]} />
+                    <Bar dataKey="origin" name="Origin" stackId="a" fill={CHART_COLORS[2]} />
+                    <Bar dataKey="partOfSpeech" name="Part of speech" stackId="a" fill={CHART_COLORS[3]} />
+                    <Bar dataKey="repeat" name="Repeat" stackId="a" fill={CHART_COLORS[4]} />
+                    <Bar dataKey="voice" name="Voice input" stackId="a" fill={CHART_COLORS[5]} />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
@@ -491,10 +628,12 @@ export default function Reports() {
                     <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} />
                     <RTooltip {...tooltipStyle} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="definition" stackId="a" fill={CHART_COLORS[0]} />
-                    <Bar dataKey="example" stackId="a" fill={CHART_COLORS[1]} />
-                    <Bar dataKey="origin" stackId="a" fill={CHART_COLORS[2]} />
-                    <Bar dataKey="repeat" stackId="a" fill={CHART_COLORS[3]} />
+                    <Bar dataKey="definition" name="Definition" stackId="a" fill={CHART_COLORS[0]} />
+                    <Bar dataKey="example" name="Example" stackId="a" fill={CHART_COLORS[1]} />
+                    <Bar dataKey="origin" name="Origin" stackId="a" fill={CHART_COLORS[2]} />
+                    <Bar dataKey="partOfSpeech" name="Part of speech" stackId="a" fill={CHART_COLORS[3]} />
+                    <Bar dataKey="repeat" name="Repeat" stackId="a" fill={CHART_COLORS[4]} />
+                    <Bar dataKey="voice" name="Voice input" stackId="a" fill={CHART_COLORS[5]} />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
@@ -542,14 +681,73 @@ export default function Reports() {
                   <div><p className="text-xs text-muted-foreground">Top miss types</p><p className="font-medium">{s.topMissCategories.join(", ")}</p></div>
                   <div>
                     <p className="text-xs text-muted-foreground">Supports</p>
-                    <p className="font-medium">D {s.supportsUsed.definition} · E {s.supportsUsed.example} · O {s.supportsUsed.origin} · R {s.supportsUsed.repeat}</p>
+                    <p className="font-medium">D {s.supportsUsed.definition} · E {s.supportsUsed.example} · O {s.supportsUsed.origin} · P {s.supportsUsed.partOfSpeech} · R {s.supportsUsed.repeat} · V {s.supportsUsed.voice}</p>
                   </div>
                 </div>
                 <div className="mt-3 flex gap-2">
-                  <button className="text-xs font-semibold text-primary hover:underline">View per-word breakdown →</button>
+                  <button
+                    onClick={() => void toggleSession(s.id)}
+                    className="text-xs font-semibold text-primary hover:underline"
+                  >
+                    {expandedSessionId === s.id ? "Hide per-word breakdown" : "View per-word breakdown →"}
+                  </button>
                 </div>
+                {expandedSessionId === s.id && (
+                  <div className="mt-4 space-y-3 border-t border-border/60 pt-4">
+                    {loadingSessionId === s.id ? (
+                      <p className="text-sm text-muted-foreground">Loading word details…</p>
+                    ) : sessionDetailError[s.id] ? (
+                      <p className="text-sm text-destructive">{sessionDetailError[s.id]}</p>
+                    ) : (sessionWords[s.id]?.length ?? 0) === 0 ? (
+                      <p className="text-sm text-muted-foreground">No word attempts were recorded for this session.</p>
+                    ) : sessionWords[s.id].map((word, index) => (
+                      <div key={`${word.target}-${index}`} className="rounded-xl bg-muted/35 p-4 text-sm">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono font-semibold">{word.target}</span>
+                          <span className="text-muted-foreground">→</span>
+                          <span className="font-mono">{word.attempt || "—"}</span>
+                          {statusPill(word.correct)}
+                        </div>
+                        <p className="mt-2"><span className="font-medium">Miss analysis:</span> {word.primaryError}{word.secondaryErrors.length ? ` · ${word.secondaryErrors.join(", ")}` : ""}</p>
+                        <p className="mt-1"><span className="font-medium">Explanation:</span> {word.explanation}</p>
+                        <p className="mt-1"><span className="font-medium">Memory tip:</span> {word.memoryTip}</p>
+                        <p className="mt-1"><span className="font-medium">Word breakdown:</span> {word.wordBreakdown}</p>
+                        <p className="mt-1"><span className="font-medium">Concept teaching:</span> {word.conceptTeaching}</p>
+                        <p className="mt-1"><span className="font-medium">Say aloud:</span> {word.sayAloudTip}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
+            {sessionPagination && sessionPagination.totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    setExpandedSessionId(null);
+                    setSessionPage((current) => Math.max(1, current - 1));
+                  }}
+                  disabled={sessionPagination.page <= 1 || loading}
+                  className="rounded-lg border border-border/60 px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span className="text-xs text-muted-foreground">
+                  Page {sessionPagination.page} of {sessionPagination.totalPages}
+                </span>
+                <button
+                  onClick={() => {
+                    setExpandedSessionId(null);
+                    setSessionPage((current) =>
+                      Math.min(sessionPagination.totalPages, current + 1));
+                  }}
+                  disabled={sessionPagination.page >= sessionPagination.totalPages || loading}
+                  className="rounded-lg border border-border/60 px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground text-center pt-2">
               Per-word section shows target word, child attempt, correctness, miss analysis, explanation, memory tip, word breakdown, concept teaching, and say-aloud tip.
             </p>
@@ -561,7 +759,7 @@ export default function Reports() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <KpiCard label="Rounds completed" value={d.mockBee.roundsCompleted} />
               <KpiCard label="Average score" value={d.mockBee.avgScore} hint="correct / round" />
-              <KpiCard label="Best round" value={`${Math.max(...d.mockBee.accuracyByRound.map((r) => r.accuracy))}%`} />
+              <KpiCard label="Best round" value={`${d.mockBee.accuracyByRound.length ? Math.max(...d.mockBee.accuracyByRound.map((r) => r.accuracy)) : 0}%`} />
               <KpiCard label="Total timeouts" value={d.mockBee.timeoutsByRound.reduce((a, b) => a + b.timeouts, 0)} />
             </div>
 
@@ -614,11 +812,17 @@ export default function Reports() {
                 <span className="text-success font-semibold">{r.correct}</span>,
                 <span className="text-destructive font-semibold">{r.incorrect}</span>,
                 r.timedOut,
-                <button className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
+                <button
+                  onClick={() => downloadReviewCards(r)}
+                  disabled={r.reviewCards.length === 0}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+                >
                   <Download className="h-3 w-3" /> Review card
                 </button>,
               ])}
             />
+          </>
+        )}
           </>
         )}
       </main>

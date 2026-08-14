@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Check, Sparkles, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+const STANDARD_FREE_WORD_LIMIT = Number(import.meta.env.VITE_STANDARD_FREE_WORD_LIMIT) || 30;
 
 const MONTHLY = 9.99;
 const ANNUAL_TOTAL = 99; // ~2 months free
@@ -43,7 +44,7 @@ export default function Pricing() {
             Simple pricing.<span className="text-primary"> Master every word.</span>
           </h1>
           <p className="text-base sm:text-lg text-muted-foreground">
-            Start free with the first 50 standard words. Upgrade any time to unlock every practice mode.
+            Start free with the first {STANDARD_FREE_WORD_LIMIT} standard words. Upgrade any time to unlock every practice mode.
           </p>
         </div>
 
@@ -89,7 +90,7 @@ export default function Pricing() {
               <span className="text-4xl font-display font-semibold">$0</span>
             </div>
             <ul className="mt-6 space-y-3 text-sm flex-1">
-              <Feature>Upto 50 words of StandardPractice</Feature>
+              <Feature>Upto {STANDARD_FREE_WORD_LIMIT} words of StandardPractice</Feature>
               <Feature>AI coaching feedback on every attempt</Feature>
               <Feature>Audio pronunciation & smart hints</Feature>
               <Feature>Session history</Feature>
@@ -154,10 +155,10 @@ export default function Pricing() {
           </h3>
           <div className="space-y-4">
             <Faq q="What's included in the free plan?">
-              You get the first 50 words of Standard Practice with full AI coaching, audio, and hints — no credit card needed.
+              You get the first {STANDARD_FREE_WORD_LIMIT} words of Standard Practice with full AI coaching, audio, and hints — no credit card needed.
             </Faq>
             <Faq q="What unlocks with Premium?">
-              Custom Word Lists (import your own words) and Language Origins (practice by Greek, Latin, French, etc.) are Premium-only. Premium also removes the 50-word cap on Standard Practice.
+              Custom Word Lists (import your own words) and Language Origins (practice by Greek, Latin, French, etc.) are Premium-only. Premium also removes the {STANDARD_FREE_WORD_LIMIT}-word cap on Standard Practice.
             </Faq>
             <Faq q="Can I cancel anytime?">
               Yes. Cancel from your account settings and you'll keep Premium access until the end of the billing period.

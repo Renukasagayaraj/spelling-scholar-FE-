@@ -73,7 +73,7 @@ export default function MockBee() {
     activeMode: string;
     activeSessionId: string;
   } | null>(null);
-  const [conflictLoading, setConflictLoading] = useState<"resume" | "startNew" | null>(null);
+  const [conflictLoading, setConflictLoading] = useState(false);
   const [conflictError, setConflictError] = useState<string | null>(null);
 
   // Round state
@@ -194,7 +194,7 @@ export default function MockBee() {
         return false;
       }
 
-      setSession((result as Record<string, unknown>)["session"] as MockBeeSession || result as unknown as MockBeeSession);
+      setSession((result as any).session || (result as any));
       setStage("round");
       resetTurnState();
       return true;
@@ -324,56 +324,47 @@ export default function MockBee() {
     }
   };
 
-  const handleConflictResume = useCallback(async () => {
+  const handleConflictResume = async () => {
     if (!pendingConflict) return;
-    setConflictLoading("resume");
-    setConflictError(null);
-    try {
-      if (pendingConflict.activeMode !== "mock_bee") {
-        navigate("/");
-        return;
-      }
-      if (!pendingConflict.activeSessionId) {
-        throw new Error("No active session ID found.");
-      }
-      const session = await getMockBeeSession(pendingConflict.activeSessionId);
-      setSession(session as MockBeeSession);
-      if ((session as Record<string, unknown>)["status"] === "completed") {
-        void goToReview((session as Record<string, unknown>)["id"] as string);
-      } else {
-        setStage("round");
-        resetTurnState();
-      }
-      setPendingConflict(null);
-    } catch (err) {
-      console.error(err);
-      setConflictError("Could not resume. Please try again.");
-    } finally {
-      setConflictLoading(null);
-    }
-  }, [navigate, pendingConflict]);
 
-  const handleConflictStartNew = useCallback(async () => {
-    if (!pendingConflict) return;
-    setConflictLoading("startNew");
+    setConflictLoading(true);
     setConflictError(null);
+
+    try {
+      queuePracticeResumeMode(pendingConflict.activeMode);
+      setPendingConflict(null);
+      navigate("/");
+    } catch (error) {
+      console.error("Failed to resume current session:", error);
+      setConflictError("Could not resume the current session. Please try again.");
+    } finally {
+      setConflictLoading(false);
+    }
+  };
+
+  const handleConflictStartNew = async () => {
+    if (!pendingConflict) return;
+
+    setConflictLoading(true);
+    setConflictError(null);
+
     try {
       const started = await startRound(true);
       if (started) {
         setPendingConflict(null);
       }
-    } catch (err) {
-      console.error(err);
-      setConflictError("Could not start a new session. Please try again.");
+    } catch (error) {
+      console.error("Failed to start a new mock bee round:", error);
+      setConflictError("Could not stop the current session and start a new round.");
     } finally {
-      setConflictLoading(null);
+      setConflictLoading(false);
     }
-  }, [startRound, pendingConflict]);
+  };
 
-  const handleConflictCancel = useCallback(() => {
+  const handleConflictCancel = () => {
     setConflictError(null);
     setPendingConflict(null);
-  }, []);
+  };
 
   const handleHearWord = async () => {
     if (!session || audioLoading) return;
@@ -508,7 +499,7 @@ export default function MockBee() {
         open={!!pendingConflict}
         activeMode={pendingConflict?.activeMode ?? null}
         requestedMode="mock_bee"
-        loadingState={conflictLoading || (creating ? "startNew" : null)}
+        loading={conflictLoading || creating}
         error={conflictError}
         onResume={handleConflictResume}
         onStartNew={handleConflictStartNew}

@@ -10,9 +10,49 @@ import {
   startPracticeSession,
   submitAndRecordSpellingAttempt,
   submitSpellingAttempt,
+  startGuestAccess,
   importCustomWordFile,
   type CoachingRequest,
 } from "@/lib/api";
+
+describe("guest access", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it("creates a guest token and reuses it on the next status request", async () => {
+    const usage = {
+      guestToken: "signed-guest-token",
+      attemptsUsed: 7,
+      attemptsRemaining: 23,
+      limit: 30,
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => usage,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(startGuestAccess()).resolves.toEqual(usage);
+    await expect(startGuestAccess()).resolves.toEqual(usage);
+
+    expect(localStorage.getItem("spelling_coach_guest_token")).toBe("signed-guest-token");
+    expect(fetchMock).toHaveBeenNthCalledWith(1, expect.stringContaining("/api/guests/start"), {
+      method: "POST",
+      headers: {},
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(2, expect.stringContaining("/api/guests/start"), {
+      method: "POST",
+      headers: { "x-guest-token": "signed-guest-token" },
+    });
+  });
+});
 
 describe("file import API", () => {
   beforeEach(() => {
@@ -300,10 +340,12 @@ const streamingRequest: CoachingRequest = {
 
 describe("spelling coach streaming API", () => {
   beforeEach(() => {
+    localStorage.setItem("spelling_coach_guest_token", "test-guest-token");
     vi.stubGlobal("fetch", vi.fn());
   });
 
   afterEach(() => {
+    localStorage.removeItem("spelling_coach_guest_token");
     vi.unstubAllGlobals();
   });
 
@@ -517,10 +559,12 @@ describe("spelling coach streaming API", () => {
 
 describe("streaming practice session lifecycle", () => {
   beforeEach(() => {
+    localStorage.setItem("spelling_coach_guest_token", "test-guest-token");
     vi.stubGlobal("fetch", vi.fn());
   });
 
   afterEach(() => {
+    localStorage.removeItem("spelling_coach_guest_token");
     vi.unstubAllGlobals();
   });
 

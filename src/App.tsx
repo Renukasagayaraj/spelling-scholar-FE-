@@ -3,7 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { AuthProvider } from "@/hooks/use-auth";
 import Index from "./pages/Index.tsx";
 import Landing from "./pages/Landing.tsx";
 import MockBee from "./pages/MockBee.tsx";
@@ -17,12 +17,6 @@ import AuthCallback from "./pages/AuthCallback.tsx";
 
 const queryClient = new QueryClient();
 
-const RootRoute = () => {
-  const { user, loading } = useAuth();
-  if (loading) return null;
-  return user ? <Index /> : <Landing />;
-};
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -31,7 +25,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<RootRoute />} />
+            <Route path="/" element={<Index />} />
             <Route path="/mock-bee" element={<MockBee />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/landing" element={<Landing />} />
