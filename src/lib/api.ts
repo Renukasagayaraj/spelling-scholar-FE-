@@ -36,6 +36,13 @@ export class FreeAttemptLimitError extends Error {
   }
 }
 
+export class InactivePracticeSessionError extends Error {
+  constructor(message = "This practice session is no longer active") {
+    super(message);
+    this.name = "InactivePracticeSessionError";
+  }
+}
+
 async function authHeaders(): Promise<Record<string, string>> {
   const token = await getAccessToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -1364,6 +1371,9 @@ export async function recordWordAttempt(body: RecordAttemptBody): Promise<string
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     if (res.status === 402) throw new FreeAttemptLimitError(data.error);
+    if (res.status === 409 && data.code === "PRACTICE_SESSION_NOT_ACTIVE") {
+      throw new InactivePracticeSessionError(data.error);
+    }
     throw new Error(data.error || "Failed to record word attempt");
   }
   const data = await res.json();

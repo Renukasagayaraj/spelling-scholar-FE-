@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   claimGuestPractice: vi.fn(),
   fetchUserStatistics: vi.fn(),
   startPracticeSession: vi.fn(),
+  fetchPracticeSession: vi.fn(),
   fetchSessionAttempts: vi.fn(),
   submitSpellingAttempt: vi.fn(),
   submitAndRecordSpellingAttempt: vi.fn(),
@@ -75,6 +76,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     claimGuestPractice: mocks.claimGuestPractice,
     fetchUserStatistics: mocks.fetchUserStatistics,
     startPracticeSession: mocks.startPracticeSession,
+    fetchPracticeSession: mocks.fetchPracticeSession,
     fetchSessionAttempts: mocks.fetchSessionAttempts,
     submitSpellingAttempt: mocks.submitSpellingAttempt,
     submitAndRecordSpellingAttempt: mocks.submitAndRecordSpellingAttempt,
@@ -148,6 +150,13 @@ describe("main application pages", () => {
     mocks.fetchUserStatistics.mockResolvedValue([]);
     mocks.fetchNextWord.mockResolvedValue(word);
     mocks.startPracticeSession.mockResolvedValue({ action: "created", sessionId: "practice-1" });
+    mocks.fetchPracticeSession.mockResolvedValue({
+      id: "practice-1",
+      mode: "standard_level_1",
+      status: "active",
+      session_started_at: "2026-08-08T10:00:00.000Z",
+      session_ended_at: null,
+    });
     mocks.fetchSessionAttempts.mockResolvedValue([]);
     mocks.endPracticeSession.mockResolvedValue(undefined);
     mocks.submitSpellingAttempt.mockImplementation(async (_request, handlers) => {
@@ -189,6 +198,27 @@ describe("main application pages", () => {
     expect(screen.getByPlaceholderText("Type your spelling…")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Definition/ }));
     expect(screen.getByText(word.definition)).toBeInTheDocument();
+  });
+
+  it("clears an open practice screen when the database abandons its session", async () => {
+    renderPage(<Index />);
+    fireEvent.click(await screen.findByRole("button", { name: /Standard Practice/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Grades 1/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Session" }));
+    expect(await screen.findByText(/Session in progress/)).toBeInTheDocument();
+
+    mocks.fetchPracticeSession.mockResolvedValueOnce({
+      id: "practice-1",
+      mode: "standard_level_1",
+      status: "abandoned",
+      session_started_at: "2026-08-08T10:00:00.000Z",
+      session_ended_at: "2026-08-08T10:30:00.000Z",
+    });
+    window.dispatchEvent(new Event("focus"));
+
+    expect(await screen.findByText(/ended after 30 minutes/)).toBeInTheDocument();
+    expect(screen.queryByText(/Session in progress/)).not.toBeInTheDocument();
+    expect(localStorage.getItem("active_session_recovery")).toBeNull();
   });
 
   it("shows a friendly load error and returns to the dashboard", async () => {
@@ -298,11 +328,7 @@ describe("main application pages", () => {
     await waitFor(() => expect(mocks.submitAndRecordSpellingAttempt).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByText("Not quite!")).toBeInTheDocument());
     window.dispatchEvent(new Event("pagehide"));
-    await waitFor(() => expect(mocks.endPracticeSession).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: "practice-1", totalWordsAttempted: 4 }),
-      true,
-    ));
-    window.dispatchEvent(new Event("pageshow"));
+    expect(mocks.endPracticeSession).not.toHaveBeenCalled();
     fireEvent.click(document.querySelector('button[title="Home"]')!);
     await waitFor(() => expect(mocks.endPracticeSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "practice-1", totalWordsAttempted: 4 })));
   });
@@ -389,6 +415,7 @@ describe("main application pages", () => {
     await waitFor(() => expect(mocks.startPracticeSession).toHaveBeenCalledWith(expect.objectContaining({ mode: "custom", customListId: "homework", customListName: "Homework" })));
     expect(mocks.fetchNextWord).toHaveBeenCalledWith(expect.objectContaining({ customListId: "homework" }));
     customView.unmount();
+    localStorage.clear();
 
     vi.clearAllMocks();
     mocks.fetchForeignOrigins.mockResolvedValue({ origins: [{ origin: "Greek", wordCount: 4 }] });

@@ -8,6 +8,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Clock3, Loader2, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { formatSessionModeLabel } from "@/lib/sessionResume";
 
 interface ActiveSessionConflictDialogProps {
@@ -31,8 +32,15 @@ export function ActiveSessionConflictDialog({
   onStartNew,
   onCancel,
 }: ActiveSessionConflictDialogProps) {
+  const [loadingAction, setLoadingAction] = useState<"resume" | "start-new" | null>(null);
   const activeLabel = activeMode ? formatSessionModeLabel(activeMode) : "another session";
   const requestedLabel = requestedMode ? formatSessionModeLabel(requestedMode) : "this session";
+
+  useEffect(() => {
+    if (!open || !loading) {
+      setLoadingAction(null);
+    }
+  }, [loading, open]);
 
   return (
     <AlertDialog open={open}>
@@ -66,23 +74,29 @@ export function ActiveSessionConflictDialog({
           <AlertDialogAction
             onClick={(event) => {
               event.preventDefault();
+              setLoadingAction("resume");
               void onResume();
             }}
             disabled={loading}
             className="h-11 w-full bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/90"
           >
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {loading && loadingAction === "resume" ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : null}
             Resume Current Session
           </AlertDialogAction>
           <AlertDialogAction
             onClick={(event) => {
               event.preventDefault();
+              setLoadingAction("start-new");
               void onStartNew();
             }}
             disabled={loading}
             className="h-11 w-full shadow-sm"
           >
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {loading && loadingAction === "start-new" ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : null}
             Stop Current And Start New
           </AlertDialogAction>
         </div>

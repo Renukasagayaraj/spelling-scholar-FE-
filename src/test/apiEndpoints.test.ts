@@ -13,6 +13,7 @@ vi.mock("@/lib/supabase", () => ({
 
 import {
   UnauthorizedError,
+  InactivePracticeSessionError,
   checkHealth,
   claimGuestPractice,
   createStripeCheckoutSession,
@@ -149,6 +150,25 @@ describe("remaining API endpoints", () => {
     await expect(endPracticeSession({ sessionId: "s/1", totalWordsAttempted: 1, totalCorrect: 0, durationSeconds: 10 }, true)).resolves.toBeUndefined();
     expect(fetchMock.mock.calls[1][0]).toContain("sessionId=s%2F1");
     expect(fetchMock.mock.calls[4][1]).toMatchObject({ keepalive: true });
+  });
+
+  it("recognizes an attempt rejected because its session was abandoned", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(
+      {
+        error: "This practice session is no longer active.",
+        code: "PRACTICE_SESSION_NOT_ACTIVE",
+      },
+      { ok: false, status: 409 },
+    )));
+
+    await expect(recordWordAttempt({
+      sessionId: "stale-session",
+      targetWord: "rhythm",
+      childAttempt: "rhythm",
+      isCorrect: true,
+      level: 1,
+      mode: "standard",
+    })).rejects.toBeInstanceOf(InactivePracticeSessionError);
   });
 
   it.each([

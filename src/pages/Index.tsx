@@ -35,6 +35,7 @@ import {
   fetchCustomLists,
   fetchForeignOriginDetails,
   FreeAttemptLimitError,
+  InactivePracticeSessionError,
 } from "@/lib/api";
 import { endMockBeeSession } from "@/lib/mockBeeApi";
 import { VoiceMic } from "@/components/VoiceMic";
@@ -343,36 +344,6 @@ export default function Index() {
     }
   };
 
-  // Handle window/tab unload (pagehide) beacon flush for active practice session
-  useEffect(() => {
-    const handlePageHide = () => {
-      if (!activeSessionId || !sessionStartTime) return;
-      const savedMap = localStorage.getItem("active_sessions_map");
-      const map = savedMap ? JSON.parse(savedMap) : {};
-      const prevAcc = (activeSessionMode && map[activeSessionMode]?.accumulatedDuration) || 0;
-      const currentDuration = Math.round((Date.now() - sessionStartTime) / 1000);
-      const totalDuration = prevAcc + currentDuration;
-
-      const totalWordsAttempted = history.length;
-      const totalCorrect = history.filter((h) => h.result?.correctness?.isCorrect).length;
-
-      void endPracticeSession(
-        {
-          sessionId: activeSessionId,
-          totalWordsAttempted,
-          totalCorrect,
-          durationSeconds: totalDuration,
-        },
-        true,
-      );
-    };
-
-    window.addEventListener("pagehide", handlePageHide);
-    return () => {
-      window.removeEventListener("pagehide", handlePageHide);
-    };
-  }, [activeSessionId, activeSessionMode, sessionStartTime, history]);
-
   const clearRecoveredSessionState = useCallback((message?: string) => {
     localStorage.removeItem("active_sessions_map");
     localStorage.removeItem("active_session_recovery");
@@ -391,6 +362,7 @@ export default function Index() {
     setHistory([]);
     setActiveHistoryIndex(null);
     setCustomPracticeActive(false);
+    setStandardSessionActive(false);
     setSelectedCustomList(null);
     setForeignPracticeActive(false);
     setSelectedForeignOrigin(null);
@@ -428,15 +400,39 @@ export default function Index() {
       if (session?.status === "active") {
         return true;
       }
+
+      clearRecoveredSessionState(
+        session?.status === "abandoned"
+          ? "This session ended after 30 minutes without a word submission. Start a new session to continue."
+          : "This session is no longer active. Start a new session to continue.",
+      );
+      return false;
     } catch (err) {
       console.error("Failed to verify session status:", err);
       setError("Could not verify the current session. Please refresh and try again.");
       return false;
     }
-
-    clearRecoveredSessionState("This session was closed in another tab.");
-    return false;
   }, [activeSessionId, clearRecoveredSessionState]);
+
+  // Re-check the session when the user returns to this browser tab.
+  useEffect(() => {
+    if (!activeSessionId) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void ensureSessionIsStillActive();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange,
+      );
+    };
+  }, [activeSessionId, ensureSessionIsStillActive]);
 
   const isStartingSession = useRef(false);
 
@@ -581,7 +577,7 @@ export default function Index() {
 
 
       if (result.action === "active_session_conflict") {
-        setError("Could not close the previous practice session.");
+        setError(null);
         setConflictError(null);
         setPendingConflict({
           activeMode: result.activeMode,
@@ -727,7 +723,9 @@ export default function Index() {
         if (id && start) {
           const session = await fetchPracticeSession(id);
           if (!session || session.status !== "active") {
-            clearRecoveredSessionState("This session was closed in another tab.");
+            clearRecoveredSessionState(
+              "This session is no longer active. Start a new session to continue.",
+            );
             setIsRecovering(false);
             return;
           }
@@ -1204,6 +1202,10 @@ export default function Index() {
     }
 
     submitInFlightRef.current = true;
+    if (!(await ensureSessionIsStillActive())) {
+      submitInFlightRef.current = false;
+      return;
+    }
     submitAbortRef.current?.abort();
     const controller = new AbortController();
     submitAbortRef.current = controller;
@@ -1319,6 +1321,12 @@ export default function Index() {
           persistenceFailureRef.current = error;
           console.error(error);
           setPersistingAttempt(false);
+          if (error instanceof InactivePracticeSessionError) {
+            clearRecoveredSessionState(
+              "This session ended after 30 minutes without a word submission. Start a new session to continue.",
+            );
+            return;
+          }
           setPersistenceFailed(true);
           setError("Coaching completed, but this attempt could not be saved. You cannot continue until it is resolved.");
         },
@@ -1726,7 +1734,7 @@ export default function Index() {
         {error && (
           <div className="rounded-xl bg-destructive/10 border border-destructive/30 p-4 text-center text-sm text-destructive mb-4">
             {error}
-            {!persistenceFailed && (
+            {!persistenceFailed && activeSessionId && (
               <button
                 onClick={handleNextWord}
                 className="block mx-auto mt-2 underline text-xs"
