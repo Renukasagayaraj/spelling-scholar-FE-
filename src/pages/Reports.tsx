@@ -472,7 +472,7 @@ export default function Reports() {
                 r.level,
               ])}
             />
-            {/* <TableCard
+            <TableCard
               title="Recent missed words"
               subtitle="Most recent 20 distinct incorrect target words"
               headers={["Target", "Attempt", "Primary error", "Secondary", "Date", "Mode", "Level"]}
@@ -485,7 +485,7 @@ export default function Reports() {
                 r.mode,
                 r.level,
               ])}
-            /> */}
+            />
           </>
         )}
 
