@@ -1387,10 +1387,15 @@ export interface EndSessionBody {
   durationSeconds: number;
 }
 
+export type EndSessionResult =
+  | "completed"
+  | "already_abandoned"
+  | "already_completed";
+
 export async function endPracticeSession(
   body: EndSessionBody,
   keepalive = false,
-): Promise<void> {
+): Promise<EndSessionResult>{
   const res = await fetch(`${BASE_URL}/api/sessions/end`, {
     method: "POST",
     headers: {
@@ -1401,7 +1406,19 @@ export async function endPracticeSession(
     keepalive,
   });
   if (res.status === 401) await handle401();
-  if (!res.ok) throw new Error("Failed to end practice session");
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Failed to end practice session");
+  }
+  const data = await res.json();
+  if (
+    data.result !== "completed" &&
+    data.result !== "already_abandoned" &&
+    data.result !== "already_completed"
+  ) {
+    throw new Error("Invalid end practice session response");
+  }
+  return data.result;
 }
 
 export interface DbUserStats {
@@ -1446,7 +1463,7 @@ export interface DbWordAttempt {
   part_of_speech_viewed?: boolean;
   repeat_word_count?: number;
   used_voice_input?: boolean;
-  coaching_response?: string | null;
+  coaching_response?: CoachingResponse | string | null;
   created_at: string;
   word_catalog_entry?: Partial<WordData> | null;
 }

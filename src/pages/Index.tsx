@@ -64,6 +64,7 @@ import { PaymentDialog } from "@/components/PaymentDialog";
 import { AuthDialog } from "@/components/AuthDialog";
 import { ActiveSessionConflictDialog } from "@/components/ActiveSessionConflictDialog";
 import { queueMockBeeResume, takePracticeResumeMode } from "@/lib/sessionResume";
+import { parseStoredCoaching } from "@/lib/sessionRecovery";
 
 const STANDARD_FREE_WORD_LIMIT = Number(import.meta.env.VITE_STANDARD_FREE_WORD_LIMIT) || 30;
 
@@ -73,76 +74,6 @@ interface ActivePracticeSession {
   startedAt: number;
   totalAttempts: number;
   totalCorrect: number;
-}
-
-function parseStoredCoaching(attempt: DbWordAttempt): CoachingResponse {
-  let shortFeedback = attempt.coaching_response?.trim() ?? "";
-  if (attempt.coaching_response) {
-    try {
-      const parsed = JSON.parse(attempt.coaching_response) as unknown;
-      if (typeof parsed === "string") {
-        shortFeedback = parsed.trim();
-      } else {
-        const coaching = parsed as CoachingResponse;
-        if (coaching?.correctness && coaching?.coachingText && coaching?.wordTeaching) {
-          return coaching;
-        }
-      }
-    } catch {
-      // Legacy attempts stored short feedback as plain text rather than JSON.
-    }
-  }
-
-  return {
-    correctness: { isCorrect: attempt.is_correct, reinforceSuccess: true },
-    missAnalysis: {
-      summary: "",
-      primaryErrorType: null,
-      secondaryErrorTypes: [],
-      errorTypeEvidence: {},
-      primaryErrorFocus: "",
-      likelyWrongWordInterpretation: false,
-      usedMeaningDisambiguationWell: false,
-    },
-    wordTeaching: {
-      formTeaching: {
-        summary: "",
-        patterns: [],
-        chunks: [],
-        chunkReason: "",
-        sayAloudFocus: "",
-      },
-      conceptTeaching: {
-        summary: "",
-        meaningFocus: "",
-        originFocus: "",
-        morphologyFocus: "",
-        originLabels: [],
-        morphologyLabels: [],
-      },
-    },
-    errorRelevance: { mostRelevantToError: "", confidence: 0, reason: "" },
-    teachingDecision: {
-      strategy: "",
-      primaryFocus: "",
-      secondaryFocuses: [],
-      confidence: 0,
-      rationale: "",
-    },
-    coachingText: {
-      shortFeedback,
-      fullExplanation: "",
-      memoryTip: "",
-      sayAloudTip: "",
-    },
-    wordBreakdown: { displayChunks: [], chunkReason: "", matchedPatterns: [] },
-    conceptLabels: { originLabels: [], patternLabels: [], morphologyLabels: [] },
-    nextStep: {
-      practiceFocus: "",
-      shouldReviewSoon: !attempt.is_correct,
-      suggestedSimilarWordTypes: [],
-    },
-  };
 }
 
 function historyEntryFromAttempt(attempt: DbWordAttempt): HistoryEntry | null {
@@ -236,6 +167,7 @@ export default function Index() {
   const [persistingAttempt, setPersistingAttempt] = useState(false);
   const [persistenceFailed, setPersistenceFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const [result, setResult] = useState<CoachingResponse | null>(null);
   const [streamErrors, setStreamErrors] = useState<string[]>([]);
   const [audioLoading, setAudioLoading] = useState(false);
@@ -323,12 +255,15 @@ export default function Index() {
     const totalDuration = prevAcc + currentDuration;
 
     try {
-      await endPracticeSession({
+      const endResult = await endPracticeSession({
         sessionId: activeSessionId,
         totalWordsAttempted: Math.max(sessionWordCount, history.length),
         totalCorrect: Math.max(sessionCorrectCount, history.filter((h) => h.result?.correctness?.isCorrect).length),
         durationSeconds: totalDuration,
       });
+      if (endResult === "already_abandoned") {
+        setSessionNotice("This session had already ended due to inactivity. You can start a new session.");
+      }      
     } catch (err) {
       console.error("Failed to end practice session:", err);
     } finally {
@@ -344,38 +279,45 @@ export default function Index() {
     }
   };
 
-  const clearRecoveredSessionState = useCallback((message?: string) => {
-    localStorage.removeItem("active_sessions_map");
-    localStorage.removeItem("active_session_recovery");
-    localStorage.removeItem("active_session_history");
-    localStorage.removeItem("active_session_history_index");
+  const clearRecoveredSessionState = useCallback(
+    (message?: string, options: { preserveHistory?: boolean } = {}) => {
+      localStorage.removeItem("active_sessions_map");
+      localStorage.removeItem("active_session_recovery");
+      if (!options.preserveHistory) {
+        localStorage.removeItem("active_session_history");
+        localStorage.removeItem("active_session_history_index");
+      }
 
-    setActiveSessionId(null);
-    setActiveSessionMode(null);
-    setSessionStartTime(null);
-    setSessionWordCount(0);
-    setSessionCorrectCount(0);
-    setActiveChannel(null);
-    setLevel(0);
-    setWord(null);
-    setResult(null);
-    setHistory([]);
-    setActiveHistoryIndex(null);
-    setCustomPracticeActive(false);
-    setStandardSessionActive(false);
-    setSelectedCustomList(null);
-    setForeignPracticeActive(false);
-    setSelectedForeignOrigin(null);
-    setSelectedForeignOriginDetails(null);
-    setAttempt("");
-    setDefOpen(false);
-    setExOpen(false);
-    setOrigOpen(false);
-    setPosOpen(false);
-    if (message) {
-      setError(message);
-    }
-  }, []);
+      setActiveSessionId(null);
+      setActiveSessionMode(null);
+      setSessionStartTime(null);
+      setSessionWordCount(0);
+      setSessionCorrectCount(0);
+      setActiveChannel(null);
+      setLevel(0);
+      setWord(null);
+      setResult(null);
+      if (!options.preserveHistory) {
+        setHistory([]);
+        setActiveHistoryIndex(null);
+      }
+      setCustomPracticeActive(false);
+      setStandardSessionActive(false);
+      setSelectedCustomList(null);
+      setForeignPracticeActive(false);
+      setSelectedForeignOrigin(null);
+      setSelectedForeignOriginDetails(null);
+      setAttempt("");
+      setDefOpen(false);
+      setExOpen(false);
+      setOrigOpen(false);
+      setPosOpen(false);
+      if (message) {
+        setSessionNotice(message);
+      }
+    },
+    [],
+  );
 
   const getRecoveredModeFromSession = useCallback(
     (session: PracticeSessionRecord, fallbackMode?: string | null) => {
@@ -405,6 +347,7 @@ export default function Index() {
         session?.status === "abandoned"
           ? "This session ended after 30 minutes without a word submission. Start a new session to continue."
           : "This session is no longer active. Start a new session to continue.",
+        { preserveHistory: true },
       );
       return false;
     } catch (err) {
@@ -724,7 +667,10 @@ export default function Index() {
           const session = await fetchPracticeSession(id);
           if (!session || session.status !== "active") {
             clearRecoveredSessionState(
-              "This session is no longer active. Start a new session to continue.",
+              session?.status === "abandoned"
+                ? "This session ended after 30 minutes without a word submission. Start a new session to continue."
+                : "This session is no longer active. Start a new session to continue.",
+              { preserveHistory: true },
             );
             setIsRecovering(false);
             return;
@@ -959,7 +905,7 @@ export default function Index() {
 
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const resetWordState = () => {
+  const resetWordState = (options: { preserveSessionNotice?: boolean } = {}) => {
     wordStateVersionRef.current += 1;
     prefetchedWordRef.current = null;
     submitAbortRef.current?.abort();
@@ -975,6 +921,7 @@ export default function Index() {
     setPosOpen(false);
     setAudioError(null);
     setError(null);
+    if (!options.preserveSessionNotice) setSessionNotice(null);
     if (audioUrlRef.current) {
       URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = null;
@@ -1091,7 +1038,7 @@ export default function Index() {
     setStandardSessionActive(false);
     setHistory([]);
     setActiveHistoryIndex(null);
-    resetWordState();
+    resetWordState({ preserveSessionNotice: true });
   };
 
   const handleSelectChannel = (selection: ChannelSelection) => {
@@ -1324,6 +1271,7 @@ export default function Index() {
           if (error instanceof InactivePracticeSessionError) {
             clearRecoveredSessionState(
               "This session ended after 30 minutes without a word submission. Start a new session to continue.",
+              { preserveHistory: true },
             );
             return;
           }
@@ -1742,6 +1690,12 @@ export default function Index() {
                 Retry
               </button>
             )}
+          </div>
+        )}
+
+        {sessionNotice && (
+          <div className="rounded-xl bg-primary/10 border border-primary/30 p-4 text-center text-sm text-foreground mb-4">
+            {sessionNotice}
           </div>
         )}
 
